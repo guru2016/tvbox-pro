@@ -1,5 +1,5 @@
 {
-  "spider": "https://cdn.jsdelivr.net/gh/guru2016/tvbox-pro@main/spider.jar",
+  "spider": "./spider.jar",
   "wallpaper": "https://api.kdcc.cn",
   "sites": [
     {
