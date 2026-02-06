@@ -12,10 +12,16 @@ from urllib.parse import quote, urlparse
 MY_GITHUB_TOKEN = "" 
 PROXIES = None 
 
-# 【核心逻辑变更】
-# 我们不直接填 Jar 地址，而是提供一个下载源。
-# 使用全球加速的 CDN 地址，防止 GitHub 下载失败
-JAR_SOURCE_URL = "https://cdn.jsdelivr.net/gh/yoursmile66/TVBox@main/Yoursmile.jar"
+# 【核心修改】
+# 既然已经把 spider.jar 上传到了仓库，我们就直接用 jsDelivr 加速引用它！
+# 请把下面的 "guru2016" 换成你的 GitHub 用户名 (如果不是这个的话)
+# 这样电视加载时，走的是全球 CDN，速度极快且稳定。
+GITHUB_USER = "guru2016"
+REPO_NAME = "tvbox-pro"
+BRANCH_NAME = "main"
+
+# 拼接出你自己的 Jar 包 CDN 地址
+CLOUD_JAR_URL = f"https://cdn.jsdelivr.net/gh/{GITHUB_USER}/{REPO_NAME}@{BRANCH_NAME}/spider.jar"
 
 SOURCE_URLS = [
     # --- 单仓 ---
@@ -108,27 +114,21 @@ def get_json(url):
     return None
 
 def fetch_github_sources():
-    print(">>> [1/6] 正在连接 GitHub 探索新源...")
+    print(">>> [1/5] 正在连接 GitHub 探索新源...")
     token = os.getenv("GH_TOKEN") or MY_GITHUB_TOKEN
-    
     if "ghp_" not in token:
-        print("    [!] 未配置有效 Token，跳过 GitHub 搜索。")
         return []
-        
     urls = []
     headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
     api = "https://api.github.com/search/code?q=filename:json+spider+sites+tvbox&sort=indexed&order=desc"
-    
     try:
         r = requests.get(api, headers=headers, timeout=10, verify=False, proxies=PROXIES)
         if r.status_code == 200:
             items = r.json().get('items', [])
-            print(f"    [+] GitHub 发现 {len(items)} 个潜在源文件")
             for item in items[:MAX_GITHUB_RESULTS]:
                 raw = item.get('html_url', '').replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/')
                 if raw: urls.append(raw)
-    except Exception as e:
-        print(f"    [!] GitHub 搜索出错: {e}")
+    except: pass
     return urls
 
 def clean_name(name):
@@ -137,7 +137,7 @@ def clean_name(name):
     return name if name else "未命名接口"
 
 def expand_multirepo(urls):
-    print(f"\n>>> [2/6] 正在解析 {len(urls)} 个初始地址...")
+    print(f"\n>>> [2/5] 正在解析 {len(urls)} 个初始地址...")
     final_single_repos = []
     def check_url(url):
         data = get_json(url)
@@ -160,10 +160,7 @@ def expand_multirepo(urls):
                 rtype, content = res
                 if rtype == "SINGLE": final_single_repos.append(content)
                 elif rtype == "MULTI": final_single_repos.extend(content)
-
-    final_single_repos = list(set(final_single_repos))
-    print(f"    -> 解析出 {len(final_single_repos)} 个单仓配置。")
-    return final_single_repos
+    return list(set(final_single_repos))
 
 def test_site_latency(site):
     name = site.get('name', '')
@@ -188,43 +185,24 @@ def test_site_latency(site):
         pass
     return None
 
-# 【新增】下载 Jar 包到本地
-def download_local_jar():
-    print(f"\n>>> [3/6] 正在下载稳定版 Jar 包...")
-    try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(JAR_SOURCE_URL, headers=headers, timeout=15, verify=False, proxies=PROXIES)
-        if r.status_code == 200:
-            with open("spider.jar", "wb") as f:
-                f.write(r.content)
-            print("    [√] Jar 包下载成功，已保存为 spider.jar")
-            return True
-        else:
-            print(f"    [x] 下载失败 Code: {r.status_code}")
-    except Exception as e:
-        print(f"    [!] 下载出错: {e}")
-    return False
-
 def main():
     requests.packages.urllib3.disable_warnings()
-    print(">>> 启动 TVBox 本地化修复版 v8.0")
+    print(">>> 启动 TVBox 终极独立版 v10.0")
     
-    # 先下载 Jar
-    download_success = download_local_jar()
-    
+    # 验证 Jar 链接是否配置正确
+    if "guru2016" not in CLOUD_JAR_URL:
+        print(f"[!] 警告: 当前 Jar 指向 {CLOUD_JAR_URL}")
+        print("[!] 请确保你已经上传了 spider.jar 到你的仓库！")
+
     initial_urls = SOURCE_URLS.copy()
     if ENABLE_GITHUB_SEARCH:
         initial_urls.extend(fetch_github_sources())
     all_config_urls = expand_multirepo(initial_urls)
     
-    print(f"\n>>> [4/6] 深度扫描 {len(all_config_urls)} 个配置...")
-    
-    # 使用相对路径 ./spider.jar
-    # 这样电视解析时，会去同一个仓库里找这个文件
-    local_jar_path = "./spider.jar"
+    print(f"\n>>> [3/5] 深度扫描 {len(all_config_urls)} 个配置...")
     
     skeleton_config = {
-        "spider": local_jar_path, 
+        "spider": CLOUD_JAR_URL, 
         "wallpaper": "https://api.kdcc.cn", 
         "sites": [],
         "lives": [],
@@ -247,7 +225,7 @@ def main():
                 s['_latency'] = 0
                 raw_sites.append(s)
 
-    print(f"\n>>> [5/6] 竞速清洗 (接口: {len(raw_sites)} 个)...")
+    print(f"\n>>> [4/5] 竞速清洗 (接口: {len(raw_sites)} 个)...")
     unique_sites = {}
     tasks = []
     for s in raw_sites:
@@ -267,21 +245,20 @@ def main():
                 unique_sites[res['api']] = res
                 valid_sites.append(res)
 
-    print(f"\n>>> [6/6] 生成最终列表...")
+    print(f"\n>>> [5/5] 生成最终列表...")
     vip_sites = [s for s in unique_sites.values() if s.get('_latency') == 0]
     common_sites = sorted(valid_sites, key=lambda x: x['_latency'])
     final_sites = vip_sites + common_sites
     for s in final_sites: s.pop('_latency', None)
 
     skeleton_config['sites'] = final_sites
-    
-    # 再次确保使用相对路径
-    skeleton_config['spider'] = local_jar_path
+    # 强制覆盖 spider 为你自己的
+    skeleton_config['spider'] = CLOUD_JAR_URL
     
     with open("my_tvbox.json", 'w', encoding='utf-8') as f:
         json.dump(skeleton_config, f, ensure_ascii=False, indent=2)
 
-    print(f"\n✅ 完成！Jar包已本地化: {local_jar_path}")
+    print(f"\n✅ 完成！Jar 已指向你自己仓库: {CLOUD_JAR_URL}")
     print(f"📊 有效源: {len(final_sites)}")
 
 if __name__ == "__main__":
