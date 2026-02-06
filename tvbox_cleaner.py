@@ -9,14 +9,17 @@ from urllib.parse import quote, urlparse
 
 # ================= 1. 配置区域 =================
 
-# 【Token 设置】本地运行可填，GitHub Actions 留空
 MY_GITHUB_TOKEN = "" 
-
-# 【代理设置】Mac 本地建议填 None 或具体的 Clash 地址
 PROXIES = None 
-# PROXIES = {"http": "http://127.0.0.1:7890", "https": "http://127.0.0.1:7890"}
 
-# 【源列表】包含单仓和多仓，脚本会自动识别处理
+# 【核心逻辑变更】
+# 我们不直接填 Jar 地址，而是提供一个下载源。
+# 脚本运行时会把这个 Jar 下载到本地，随仓库一起发布。
+# 这里选用“饭太硬”的 jar，兼容性极好。
+JAR_SOURCE_URL = "http://www.饭太硬.com/To/jar/3.jar"
+# 备用下载源 (如果上面的挂了):
+# JAR_SOURCE_URL = "https://cdn.jsdelivr.net/gh/yoursmile66/TVBox@main/Yoursmile.jar"
+
 SOURCE_URLS = [
     # --- 单仓 ---
     "http://www.饭太硬.com/tv",
@@ -56,7 +59,7 @@ SOURCE_URLS = [
     "https://cnb.cool/aooooowuuuuu/FreeSpider/-/git/raw/main/config",
     "https://android.lushunming.qzz.io/json/index.json",
     
-    # --- 多仓 (脚本会自动展开) ---
+    # --- 多仓 ---
     "https://www.iyouhun.com/tv/dc",
     "https://www.iyouhun.com/tv/yh",
     "https://9877.kstore.space/AnotherDS/api.json",
@@ -67,16 +70,14 @@ SOURCE_URLS = [
     "http://xmbjm.fh4u.org/dc.txt"
 ]
 
-# 优化配置
-ENABLE_GITHUB_SEARCH = True   # 开启自动搜寻
+ENABLE_GITHUB_SEARCH = True
 MAX_GITHUB_RESULTS = 5
-TIMEOUT = 4                   # 适度放宽超时，保证抓取率
-BLACKLIST = ["失效", "测试", "广告", "收费", "群", "加V", "挂壁", "Q群", "伦理", "福利", "成人"]
+TIMEOUT = 4
+BLACKLIST = ["失效", "测试", "广告", "收费", "群", "加V", "挂壁", "Q群", "伦理", "福利", "成人", "情色"]
 
 # ================= 2. 基础工具函数 =================
 
 def decode_content(content):
-    """解密 TVBox 各种奇葩格式"""
     if not content: return None
     content = content.strip()
     try:
@@ -84,7 +85,6 @@ def decode_content(content):
     except:
         pass
     try:
-        # 简单处理干扰字符和Base64
         clean_content = content.replace('**', '').replace('o', '').strip() if content.startswith('**') else content
         decoded = base64.b64decode(clean_content).decode('utf-8')
         return json.loads(decoded)
@@ -99,7 +99,6 @@ def decode_content(content):
     return None
 
 def get_json(url):
-    """带重试的网络请求"""
     safe_url = quote(url, safe=':/?&=')
     headers = {"User-Agent": "Mozilla/5.0", "Referer": safe_url}
     try:
@@ -112,8 +111,7 @@ def get_json(url):
     return None
 
 def fetch_github_sources():
-    """GitHub 自动搜寻"""
-    print(">>> [1/5] 正在连接 GitHub 探索新源...")
+    print(">>> [1/6] 正在连接 GitHub 探索新源...")
     token = os.getenv("GH_TOKEN") or MY_GITHUB_TOKEN
     
     if "ghp_" not in token:
@@ -136,192 +134,158 @@ def fetch_github_sources():
         print(f"    [!] GitHub 搜索出错: {e}")
     return urls
 
-# ================= 3. 核心逻辑：多仓展开与融合 =================
-
 def clean_name(name):
-    """名称清洗"""
     name = re.sub(r'【.*?】|\[.*?\]|\(.*?\)', '', name)
     name = name.replace("聚合", "").replace("蓝光", "").replace("专线", "").replace("API", "").strip()
     return name if name else "未命名接口"
 
 def expand_multirepo(urls):
-    """【新功能】递归展开多仓列表"""
-    print(f"\n>>> [2/5] 正在解析 {len(urls)} 个初始地址 (智能识别单仓/多仓)...")
-    
+    print(f"\n>>> [2/6] 正在解析 {len(urls)} 个初始地址...")
     final_single_repos = []
-    
     def check_url(url):
         data = get_json(url)
         if not data: return None
-        
-        # 情况A: 是多仓 (包含 urls 列表)
         if 'urls' in data and isinstance(data['urls'], list):
-            print(f"    [+] 发现多仓: {url} -> 包含 {len(data['urls'])} 个子源")
             sub_urls = []
             for item in data['urls']:
                 if isinstance(item, dict) and 'url' in item:
                     sub_urls.append(item['url'])
             return ("MULTI", sub_urls)
-            
-        # 情况B: 是单仓 (包含 sites 列表)
         elif 'sites' in data:
-            # print(f"    [.] 确认单仓: {url}")
             return ("SINGLE", url)
-            
         return None
 
-    # 并发预检查
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         future_to_url = {executor.submit(check_url, url): url for url in urls}
         for future in concurrent.futures.as_completed(future_to_url):
             res = future.result()
             if res:
                 rtype, content = res
-                if rtype == "SINGLE":
-                    final_single_repos.append(content)
-                elif rtype == "MULTI":
-                    # 将多仓里的子链接直接加入待处理列表
-                    final_single_repos.extend(content)
+                if rtype == "SINGLE": final_single_repos.append(content)
+                elif rtype == "MULTI": final_single_repos.extend(content)
 
-    # 去重
     final_single_repos = list(set(final_single_repos))
-    print(f"    -> 最终解析出 {len(final_single_repos)} 个有效的单仓配置地址。")
+    print(f"    -> 解析出 {len(final_single_repos)} 个单仓配置。")
     return final_single_repos
 
 def test_site_latency(site):
-    """测速 + 验证"""
     name = site.get('name', '')
     api = site.get('api', '')
-    
     for kw in BLACKLIST:
         if kw in name: return None
-        
-    # 只取通用 CMS (0/1) 和 APP (4)
     if site.get('type') not in [0, 1, 4]:
         return None
-
     headers = {"User-Agent": "Mozilla/5.0"}
     start_time = time.time()
-    
     try:
         r = requests.get(api, headers=headers, timeout=TIMEOUT, stream=True, verify=False, proxies=PROXIES)
         if r.status_code < 400:
             latency = (time.time() - start_time) * 1000
             site['_latency'] = int(latency)
             site['name'] = clean_name(name)
-            
             if latency < 800: site['name'] = f"🚀 {site['name']}"
             elif latency < 1500: site['name'] = f"🟢 {site['name']}"
             else: site['name'] = f"🟡 {site['name']}"
-            
-            # print(f"    [√] {int(latency)}ms | {site['name']}")
             return site
     except:
         pass
     return None
 
+# 【新增】下载 Jar 包到本地
+def download_local_jar():
+    print(f"\n>>> [3/6] 正在下载稳定版 Jar 包...")
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(JAR_SOURCE_URL, headers=headers, timeout=15, verify=False, proxies=PROXIES)
+        if r.status_code == 200:
+            with open("spider.jar", "wb") as f:
+                f.write(r.content)
+            print("    [√] Jar 包下载成功，已保存为 spider.jar")
+            return True
+        else:
+            print(f"    [x] 下载失败 Code: {r.status_code}")
+    except Exception as e:
+        print(f"    [!] 下载出错: {e}")
+    return False
+
 def main():
     requests.packages.urllib3.disable_warnings()
-    print(">>> 启动 TVBox 全网融合脚本 v6.0 (多仓版)")
+    print(">>> 启动 TVBox 本地化修复版 v8.0")
     
-    # 1. 准备初始列表
+    # 先下载 Jar
+    download_success = download_local_jar()
+    
     initial_urls = SOURCE_URLS.copy()
     if ENABLE_GITHUB_SEARCH:
         initial_urls.extend(fetch_github_sources())
-        
-    # 2. 展开多仓，获取所有单仓地址
     all_config_urls = expand_multirepo(initial_urls)
     
-    # 3. 扫描提取接口
-    print(f"\n>>> [3/5] 正在深度扫描 {len(all_config_urls)} 个配置...")
+    print(f"\n>>> [4/6] 深度扫描 {len(all_config_urls)} 个配置...")
     
-    skeleton_config = None
+    # 使用相对路径 ./spider.jar
+    # 这样电视解析时，会去同一个仓库里找这个文件
+    local_jar_path = "./spider.jar"
+    
+    skeleton_config = {
+        "spider": local_jar_path, 
+        "wallpaper": "https://api.kdcc.cn", 
+        "sites": [],
+        "lives": [],
+        "parses": [],
+        "flags": []
+    }
+    
     raw_sites = []
-    
-    # 这里不需要太高并发，以免被源站封IP
-    for i, url in enumerate(all_config_urls):
-        # 简单的进度显示
-        # print(f"    处理 ({i+1}/{len(all_config_urls)}): {url}")
+    for url in all_config_urls:
         data = get_json(url)
         if not data: continue
-        
-        # 抓取骨架 (优先找带 jar 的)
-        if not skeleton_config and data.get('spider'):
-            skeleton_config = {
-                "spider": data.get('spider'),
-                "wallpaper": data.get('wallpaper'),
-                "lives": data.get('lives', []), 
-                "parses": data.get('parses', []),
-                "flags": data.get('flags', [])
-            }
-            # 保留主源的 Spider 接口
-            for s in data.get('sites', []):
-                if s.get('type') == 3:
-                    s['name'] = f"★ {clean_name(s['name'])}"
-                    s['_latency'] = 0
-                    raw_sites.append(s)
-
-        # 提取 CMS 接口
+        if not skeleton_config['parses'] and data.get('parses'):
+            skeleton_config['parses'] = data.get('parses')
+            skeleton_config['flags'] = data.get('flags')
         for s in data.get('sites', []):
             if s.get('type') in [0, 1, 4]:
                 raw_sites.append(s)
+            elif s.get('type') == 3:
+                s['name'] = f"★ {clean_name(s['name'])}"
+                s['_latency'] = 0
+                raw_sites.append(s)
 
-    if not skeleton_config:
-        print("\n[!!!] 悲剧：所有源里都没找到一个可用的 Spider/Jar，无法生成有效配置。")
-        # 紧急保底（防止空文件）：随便造一个骨架
-        skeleton_config = {"spider": "", "sites": [], "lives": []}
-
-    # 4. 去重与测速
-    print(f"\n>>> [4/5] 正在竞速清洗 (原始接口: {len(raw_sites)} 个)...")
-    
+    print(f"\n>>> [5/6] 竞速清洗 (接口: {len(raw_sites)} 个)...")
     unique_sites = {}
     tasks = []
-    
     for s in raw_sites:
         api = s.get('api')
         if api:
             if s.get('type') == 3:
-                unique_sites[api] = s # Spider接口直接保留
-            elif api not in unique_sites: # 避免重复测同一个API
+                unique_sites[api] = s
+            elif api not in unique_sites:
                 tasks.append(s) 
 
     valid_sites = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor: # 提高并发加速测速
+    with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
         futures = [executor.submit(test_site_latency, site) for site in tasks]
         for future in concurrent.futures.as_completed(futures):
             res = future.result()
-            if res:
-                if res['api'] not in unique_sites:
-                    unique_sites[res['api']] = res
-                    valid_sites.append(res)
+            if res and res['api'] not in unique_sites:
+                unique_sites[res['api']] = res
+                valid_sites.append(res)
 
-    # 5. 排序与输出
-    print(f"\n>>> [5/5] 正在生成最终列表...")
-    
+    print(f"\n>>> [6/6] 生成最终列表...")
     vip_sites = [s for s in unique_sites.values() if s.get('_latency') == 0]
-    common_sites = sorted(valid_sites, key=lambda x: x['_latency']) # 按延迟排序
-    
+    common_sites = sorted(valid_sites, key=lambda x: x['_latency'])
     final_sites = vip_sites + common_sites
-    
-    # 清理内部字段
-    for s in final_sites:
-        s.pop('_latency', None)
+    for s in final_sites: s.pop('_latency', None)
 
     skeleton_config['sites'] = final_sites
+    
+    # 再次确保使用相对路径
+    skeleton_config['spider'] = local_jar_path
     
     with open("my_tvbox.json", 'w', encoding='utf-8') as f:
         json.dump(skeleton_config, f, ensure_ascii=False, indent=2)
 
-    print(f"\n" + "="*40)
-    print(f"✅ 全网融合完成！")
-    print(f"📊 统计：")
-    print(f"   - 初始地址数: {len(initial_urls)}")
-    print(f"   - 解析单仓数: {len(all_config_urls)} (含自动裂变)")
-    print(f"   - 原始接口池: {len(raw_sites)}")
-    print(f"   - 最终有效源: {len(final_sites)}")
-    print(f"   - 🚀 极速源:   {len([s for s in valid_sites if '🚀' in s['name']])} 个")
-    print(f"📂 文件路径: {os.path.abspath('my_tvbox.json')}")
-    print(f"="*40)
+    print(f"\n✅ 完成！Jar包已本地化: {local_jar_path}")
+    print(f"📊 有效源: {len(final_sites)}")
 
 if __name__ == "__main__":
     main()
