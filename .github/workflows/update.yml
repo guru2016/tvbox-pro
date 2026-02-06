@@ -36,7 +36,8 @@ jobs:
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
-        git add my_tvbox.json
-        # 只有当文件发生变化时才提交
+        # 这一步很关键：要把 json 和 jar 都添加进去
+        git add my_tvbox.json spider.jar
+        # 只有文件变了才提交
         git commit -m "Auto-update: $(date +'%Y-%m-%d')" || exit 0
         git push
