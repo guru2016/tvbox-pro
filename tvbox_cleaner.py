@@ -12,21 +12,22 @@ from urllib.parse import quote, urlparse
 MY_GITHUB_TOKEN = "" 
 PROXIES = None 
 
-# 【个人仓库配置】
+# 【个人仓库配置】(Jar包地址)
 GITHUB_USER = "guru2016"
 REPO_NAME = "tvbox-pro"
 BRANCH_NAME = "main"
 CLOUD_JAR_URL = f"https://cdn.jsdelivr.net/gh/{GITHUB_USER}/{REPO_NAME}@{BRANCH_NAME}/spider.jar"
 
-# 【权重配置 - 核心修改】
-# 1. VIP 关键词：包含这些词的源，无视速度，强制排在最前面
+# 【质检配置 - 核心修改】
+# 1. 开启深度检测：不仅看能不能连，还要看有没有内容
+ENABLE_DEEP_CHECK = True
+
+# 2. 严格超时：超过 4 秒没吐出数据的源，视为“卡顿”，直接丢弃
+TIMEOUT = 4
+
+# 3. VIP 关键词 (免死金牌，这些大厂源由于防爬可能检测失败，强制保留)
 VIP_KEYWORDS = ["饭太硬", "肥猫", "南风", "巧技", "FongMi", "道长", "小米", "荷城", "菜妮丝", "神器"]
-
-# 2. 黑名单：包含这些词的直接丢弃
 BLACKLIST = ["失效", "测试", "广告", "收费", "群", "加V", "挂壁", "Q群", "伦理", "福利", "成人", "情色", "引流", "弹幕", "更新"]
-
-# 3. 严格模式：超时时间缩短为 3 秒，超过 3 秒的源直接不要
-TIMEOUT = 3
 
 # 【基础源列表】
 SOURCE_URLS = [
@@ -189,40 +190,101 @@ def expand_multirepo(urls):
                 elif rtype == "MULTI": final_single_repos.extend(content)
     return list(set(final_single_repos))
 
+# 【核心修改】深度质检函数
+def deep_validate_source(api_url, site_type):
+    """
+    不仅测试通不通，还要测试里面有没有东西
+    """
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        # 请求接口内容，只读取前 5KB 足够判断了，避免下载太多
+        r = requests.get(api_url, headers=headers, timeout=TIMEOUT, verify=False, proxies=PROXIES)
+        
+        if r.status_code != 200:
+            return False, 9999
+            
+        latency = int(r.elapsed.total_seconds() * 1000)
+        
+        # 1. 检查是否为空响应
+        if not r.text or len(r.text) < 10:
+            return False, latency
+
+        # 2. 针对 CMS (Type 0/1) 和 App (Type 4) 进行 JSON 校验
+        if site_type in [0, 1, 4]:
+            try:
+                data = r.json()
+                # 核心校验：必须包含 'class' 或 'list' 字段
+                # 如果这俩都没有，说明这个接口是空的，或者报错了
+                if 'class' in data or 'list' in data:
+                    return True, latency
+                # 兼容部分魔改接口，检查 'code' 是否为 1 或 200
+                if data.get('code') in [1, 200]:
+                     return True, latency
+                return False, latency
+            except:
+                # 解析 JSON 失败，说明返回的可能是一个 404 HTML 页面
+                return False, latency
+        
+        # 3. 针对 Spider (Type 3)
+        # 无法深入校验，只要能连通就算通过
+        return True, latency
+
+    except:
+        return False, 9999
+
 def test_site_latency(site):
     name = site.get('name', '')
     api = site.get('api', '')
+    site_type = site.get('type', 0)
+    
     for kw in BLACKLIST:
         if kw in name: return None
-    if site.get('type') not in [0, 1, 4]:
+    if site_type not in [0, 1, 3, 4]: # 只测这些类型
         return None
-    headers = {"User-Agent": "Mozilla/5.0"}
-    start_time = time.time()
-    try:
-        r = requests.get(api, headers=headers, timeout=TIMEOUT, stream=True, verify=False, proxies=PROXIES)
-        if r.status_code < 400:
-            latency = (time.time() - start_time) * 1000
-            site['_latency'] = int(latency)
-            site['name'] = clean_name(name)
-            
-            # 判断是否是 VIP
-            is_vip = any(vip in site['name'] for vip in VIP_KEYWORDS)
-            site['_is_vip'] = is_vip
-            
-            if is_vip:
-                site['name'] = f"★ {site['name']}" # 给VIP加星标
-            elif latency < 800:
-                site['name'] = f"🚀 {site['name']}"
+
+    # VIP 免死金牌逻辑
+    is_vip = any(vip in name for vip in VIP_KEYWORDS)
+    site['_is_vip'] = is_vip
+
+    # 如果是 VIP，稍微放宽一点检查，或者信任它
+    # 但如果开启了深度检查，我们建议对所有源一视同仁，VIP 挂了也要标记
+    if ENABLE_DEEP_CHECK:
+        is_valid, latency = deep_validate_source(api, site_type)
+        if not is_valid:
+            # 如果是 VIP 且挂了，为了保险起见，我们可以保留但标记为慢
+            # 或者你也可以选择在这里把 VIP 也删掉
+            if is_vip: 
+                latency = 999 # 标记为可用但未知
             else:
-                site['name'] = f"🟢 {site['name']}"
-            return site
-    except:
-        pass
-    return None
+                # print(f"    [x] 深度质检失败: {name}")
+                return None
+    else:
+        # 简易模式：只测 HEAD
+        try:
+             r = requests.head(api, timeout=TIMEOUT, verify=False, proxies=PROXIES)
+             if r.status_code >= 400: return None
+             latency = int(r.elapsed.total_seconds() * 1000)
+        except:
+             return None
+
+    site['_latency'] = latency
+    site['name'] = clean_name(name)
+    
+    # 重新命名逻辑
+    if is_vip:
+        site['name'] = f"★ {site['name']}"
+    elif latency < 800:
+        site['name'] = f"🚀 {site['name']}"
+    elif latency < 2000:
+        site['name'] = f"🟢 {site['name']}"
+    else:
+        site['name'] = f"🟡 {site['name']}"
+        
+    return site
 
 def main():
     requests.packages.urllib3.disable_warnings()
-    print(">>> 启动 TVBox 智能权重版 v12.0")
+    print(">>> 启动 TVBox 深度质检版 v13.0")
     
     # 1. 抓取与合并
     all_urls = SOURCE_URLS.copy()
@@ -254,11 +316,13 @@ def main():
             elif s.get('type') == 3: # 收集别人的 Spider
                 s['name'] = f"🛡️ {clean_name(s['name'])}"
                 s['_latency'] = 0
-                s['_is_vip'] = True # Spider 接口默认 VIP
+                s['_is_vip'] = True 
                 raw_sites.append(s)
 
-    # 4. 竞速与权重计算
-    print(f"\n>>> [4/6] 竞速与权重分级 (原始: {len(raw_sites)} 个)...")
+    # 4. 深度质检
+    print(f"\n>>> [4/6] 正在进行内容深度质检 (原始: {len(raw_sites)} 个)...")
+    print("    提示：因下载内容验证，速度会比之前慢，请耐心等待...")
+    
     unique_sites = {}
     tasks = []
     for s in raw_sites:
@@ -270,26 +334,21 @@ def main():
                 tasks.append(s) 
 
     valid_sites = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
+    # 降低并发数，防止因为请求太快被对方防火墙拦截
+    with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
         futures = [executor.submit(test_site_latency, site) for site in tasks]
         for future in concurrent.futures.as_completed(futures):
             res = future.result()
             if res and res['api'] not in unique_sites:
                 unique_sites[res['api']] = res
                 valid_sites.append(res)
+                # print(f"    [√] 通过: {res['name']}")
 
     # 5. 智能排序
     print(f"\n>>> [5/6] 智能排序 (VIP优先 > 速度优先)...")
-    
-    # 获取所有有效接口
     all_valid = list(unique_sites.values())
-    
-    # 排序逻辑：
-    # 第一优先级：是否是 VIP (True 排在 False 前面) -> Python sort 是 False(0) 在前，所以要用 `not x['_is_vip']`
-    # 第二优先级：延迟 (低延迟在前)
     final_sites = sorted(all_valid, key=lambda x: (not x.get('_is_vip', False), x.get('_latency', 9999)))
     
-    # 清理临时字段
     for s in final_sites: 
         s.pop('_latency', None)
         s.pop('_is_vip', None)
@@ -301,8 +360,7 @@ def main():
         json.dump(skeleton_config, f, ensure_ascii=False, indent=2)
 
     print(f"\n✅ 完成！")
-    print(f"📊 最终有效源: {len(final_sites)}")
-    print(f"🌟 其中 VIP/Spider 源: {len([s for s in final_sites if '★' in s['name'] or '🛡️' in s['name']])} 个")
+    print(f"📊 过滤后有效源: {len(final_sites)} (已剔除空壳/假死源)")
 
 if __name__ == "__main__":
     main()
