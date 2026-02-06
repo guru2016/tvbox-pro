@@ -14,11 +14,8 @@ PROXIES = None
 
 # 【核心逻辑变更】
 # 我们不直接填 Jar 地址，而是提供一个下载源。
-# 脚本运行时会把这个 Jar 下载到本地，随仓库一起发布。
-# 这里选用“饭太硬”的 jar，兼容性极好。
-JAR_SOURCE_URL = "http://www.饭太硬.com/To/jar/3.jar"
-# 备用下载源 (如果上面的挂了):
-# JAR_SOURCE_URL = "https://cdn.jsdelivr.net/gh/yoursmile66/TVBox@main/Yoursmile.jar"
+# 使用全球加速的 CDN 地址，防止 GitHub 下载失败
+JAR_SOURCE_URL = "https://cdn.jsdelivr.net/gh/yoursmile66/TVBox@main/Yoursmile.jar"
 
 SOURCE_URLS = [
     # --- 单仓 ---
