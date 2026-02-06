@@ -12,19 +12,24 @@ from urllib.parse import quote, urlparse
 MY_GITHUB_TOKEN = "" 
 PROXIES = None 
 
-# 【核心修改】
-# 既然已经把 spider.jar 上传到了仓库，我们就直接用 jsDelivr 加速引用它！
-# 请把下面的 "guru2016" 换成你的 GitHub 用户名 (如果不是这个的话)
-# 这样电视加载时，走的是全球 CDN，速度极快且稳定。
+# 【个人仓库配置】
 GITHUB_USER = "guru2016"
 REPO_NAME = "tvbox-pro"
 BRANCH_NAME = "main"
-
-# 拼接出你自己的 Jar 包 CDN 地址
 CLOUD_JAR_URL = f"https://cdn.jsdelivr.net/gh/{GITHUB_USER}/{REPO_NAME}@{BRANCH_NAME}/spider.jar"
 
+# 【权重配置 - 核心修改】
+# 1. VIP 关键词：包含这些词的源，无视速度，强制排在最前面
+VIP_KEYWORDS = ["饭太硬", "肥猫", "南风", "巧技", "FongMi", "道长", "小米", "荷城", "菜妮丝", "神器"]
+
+# 2. 黑名单：包含这些词的直接丢弃
+BLACKLIST = ["失效", "测试", "广告", "收费", "群", "加V", "挂壁", "Q群", "伦理", "福利", "成人", "情色", "引流", "弹幕", "更新"]
+
+# 3. 严格模式：超时时间缩短为 3 秒，超过 3 秒的源直接不要
+TIMEOUT = 3
+
+# 【基础源列表】
 SOURCE_URLS = [
-    # --- 单仓 ---
     "http://www.饭太硬.com/tv",
     "http://肥猫.com",
     "http://fty.xxooo.cf/tv",
@@ -61,8 +66,6 @@ SOURCE_URLS = [
     "https://raw.githubusercontent.com/chitue/dongliTV/main/api.json",
     "https://cnb.cool/aooooowuuuuu/FreeSpider/-/git/raw/main/config",
     "https://android.lushunming.qzz.io/json/index.json",
-    
-    # --- 多仓 ---
     "https://www.iyouhun.com/tv/dc",
     "https://www.iyouhun.com/tv/yh",
     "https://9877.kstore.space/AnotherDS/api.json",
@@ -75,8 +78,6 @@ SOURCE_URLS = [
 
 ENABLE_GITHUB_SEARCH = True
 MAX_GITHUB_RESULTS = 5
-TIMEOUT = 4
-BLACKLIST = ["失效", "测试", "广告", "收费", "群", "加V", "挂壁", "Q群", "伦理", "福利", "成人", "情色"]
 
 # ================= 2. 基础工具函数 =================
 
@@ -105,7 +106,7 @@ def get_json(url):
     safe_url = quote(url, safe=':/?&=')
     headers = {"User-Agent": "Mozilla/5.0", "Referer": safe_url}
     try:
-        res = requests.get(url, headers=headers, timeout=6, verify=False, proxies=PROXIES)
+        res = requests.get(url, headers=headers, timeout=5, verify=False, proxies=PROXIES)
         res.encoding = 'utf-8'
         if res.status_code == 200:
             return decode_content(res.text)
@@ -113,11 +114,42 @@ def get_json(url):
         pass
     return None
 
-def fetch_github_sources():
-    print(">>> [1/5] 正在连接 GitHub 探索新源...")
-    token = os.getenv("GH_TOKEN") or MY_GITHUB_TOKEN
-    if "ghp_" not in token:
+def clean_name(name):
+    name = re.sub(r'【.*?】|\[.*?\]|\(.*?\)', '', name)
+    name = name.replace("聚合", "").replace("蓝光", "").replace("专线", "").replace("API", "").strip()
+    return name if name else "未命名接口"
+
+# ================= 3. 功能模块 =================
+
+def fetch_daily_sources_from_website():
+    target_url = "http://www.饭太硬.com"
+    print(f"\n>>> [0/6] 正在访问官网抓取最新接口: {target_url} ...")
+    extracted_urls = []
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        res = requests.get(target_url, headers=headers, timeout=10, verify=False, proxies=PROXIES)
+        res.encoding = 'utf-8'
+        pattern = r'(https?://[^\s"<>]+)'
+        matches = re.findall(pattern, res.text)
+        for url in matches:
+            url = url.split('?')[0]
+            lower_url = url.lower()
+            if any(lower_url.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.css', '.js', '.html', '.php', '.com', '.cn', '.net']):
+                if not any(x in lower_url for x in ['.json', '.txt', '/tv', '/api', '/lib', 'weixine']):
+                     continue
+            if "bootstrap" in lower_url or "jquery" in lower_url: continue
+            if len(url) > 10: extracted_urls.append(url)
+        extracted_urls = list(set(extracted_urls))
+        print(f"    [+] 官网抓取完成，提取到 {len(extracted_urls)} 个潜在链接。")
+        return extracted_urls
+    except Exception as e:
+        print(f"    [!] 官网抓取失败: {e}")
         return []
+
+def fetch_github_sources():
+    print(">>> [1/6] 正在连接 GitHub 探索新源...")
+    token = os.getenv("GH_TOKEN") or MY_GITHUB_TOKEN
+    if "ghp_" not in token: return []
     urls = []
     headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
     api = "https://api.github.com/search/code?q=filename:json+spider+sites+tvbox&sort=indexed&order=desc"
@@ -131,13 +163,8 @@ def fetch_github_sources():
     except: pass
     return urls
 
-def clean_name(name):
-    name = re.sub(r'【.*?】|\[.*?\]|\(.*?\)', '', name)
-    name = name.replace("聚合", "").replace("蓝光", "").replace("专线", "").replace("API", "").strip()
-    return name if name else "未命名接口"
-
 def expand_multirepo(urls):
-    print(f"\n>>> [2/5] 正在解析 {len(urls)} 个初始地址...")
+    print(f"\n>>> [2/6] 正在解析 {len(urls)} 个初始地址...")
     final_single_repos = []
     def check_url(url):
         data = get_json(url)
@@ -177,9 +204,17 @@ def test_site_latency(site):
             latency = (time.time() - start_time) * 1000
             site['_latency'] = int(latency)
             site['name'] = clean_name(name)
-            if latency < 800: site['name'] = f"🚀 {site['name']}"
-            elif latency < 1500: site['name'] = f"🟢 {site['name']}"
-            else: site['name'] = f"🟡 {site['name']}"
+            
+            # 判断是否是 VIP
+            is_vip = any(vip in site['name'] for vip in VIP_KEYWORDS)
+            site['_is_vip'] = is_vip
+            
+            if is_vip:
+                site['name'] = f"★ {site['name']}" # 给VIP加星标
+            elif latency < 800:
+                site['name'] = f"🚀 {site['name']}"
+            else:
+                site['name'] = f"🟢 {site['name']}"
             return site
     except:
         pass
@@ -187,27 +222,23 @@ def test_site_latency(site):
 
 def main():
     requests.packages.urllib3.disable_warnings()
-    print(">>> 启动 TVBox 终极独立版 v10.0")
+    print(">>> 启动 TVBox 智能权重版 v12.0")
     
-    # 验证 Jar 链接是否配置正确
-    if "guru2016" not in CLOUD_JAR_URL:
-        print(f"[!] 警告: 当前 Jar 指向 {CLOUD_JAR_URL}")
-        print("[!] 请确保你已经上传了 spider.jar 到你的仓库！")
-
-    initial_urls = SOURCE_URLS.copy()
-    if ENABLE_GITHUB_SEARCH:
-        initial_urls.extend(fetch_github_sources())
-    all_config_urls = expand_multirepo(initial_urls)
+    # 1. 抓取与合并
+    all_urls = SOURCE_URLS.copy()
+    website_urls = fetch_daily_sources_from_website()
+    if website_urls: all_urls.extend(website_urls)
+    if ENABLE_GITHUB_SEARCH: all_urls.extend(fetch_github_sources())
     
-    print(f"\n>>> [3/5] 深度扫描 {len(all_config_urls)} 个配置...")
+    # 2. 展开多仓
+    all_config_urls = expand_multirepo(all_urls)
     
+    # 3. 提取接口
+    print(f"\n>>> [3/6] 深度扫描 {len(all_config_urls)} 个配置...")
     skeleton_config = {
         "spider": CLOUD_JAR_URL, 
         "wallpaper": "https://api.kdcc.cn", 
-        "sites": [],
-        "lives": [],
-        "parses": [],
-        "flags": []
+        "sites": [], "lives": [], "parses": [], "flags": []
     }
     
     raw_sites = []
@@ -220,12 +251,14 @@ def main():
         for s in data.get('sites', []):
             if s.get('type') in [0, 1, 4]:
                 raw_sites.append(s)
-            elif s.get('type') == 3:
-                s['name'] = f"★ {clean_name(s['name'])}"
+            elif s.get('type') == 3: # 收集别人的 Spider
+                s['name'] = f"🛡️ {clean_name(s['name'])}"
                 s['_latency'] = 0
+                s['_is_vip'] = True # Spider 接口默认 VIP
                 raw_sites.append(s)
 
-    print(f"\n>>> [4/5] 竞速清洗 (接口: {len(raw_sites)} 个)...")
+    # 4. 竞速与权重计算
+    print(f"\n>>> [4/6] 竞速与权重分级 (原始: {len(raw_sites)} 个)...")
     unique_sites = {}
     tasks = []
     for s in raw_sites:
@@ -245,21 +278,31 @@ def main():
                 unique_sites[res['api']] = res
                 valid_sites.append(res)
 
-    print(f"\n>>> [5/5] 生成最终列表...")
-    vip_sites = [s for s in unique_sites.values() if s.get('_latency') == 0]
-    common_sites = sorted(valid_sites, key=lambda x: x['_latency'])
-    final_sites = vip_sites + common_sites
-    for s in final_sites: s.pop('_latency', None)
+    # 5. 智能排序
+    print(f"\n>>> [5/6] 智能排序 (VIP优先 > 速度优先)...")
+    
+    # 获取所有有效接口
+    all_valid = list(unique_sites.values())
+    
+    # 排序逻辑：
+    # 第一优先级：是否是 VIP (True 排在 False 前面) -> Python sort 是 False(0) 在前，所以要用 `not x['_is_vip']`
+    # 第二优先级：延迟 (低延迟在前)
+    final_sites = sorted(all_valid, key=lambda x: (not x.get('_is_vip', False), x.get('_latency', 9999)))
+    
+    # 清理临时字段
+    for s in final_sites: 
+        s.pop('_latency', None)
+        s.pop('_is_vip', None)
 
     skeleton_config['sites'] = final_sites
-    # 强制覆盖 spider 为你自己的
     skeleton_config['spider'] = CLOUD_JAR_URL
     
     with open("my_tvbox.json", 'w', encoding='utf-8') as f:
         json.dump(skeleton_config, f, ensure_ascii=False, indent=2)
 
-    print(f"\n✅ 完成！Jar 已指向你自己仓库: {CLOUD_JAR_URL}")
-    print(f"📊 有效源: {len(final_sites)}")
+    print(f"\n✅ 完成！")
+    print(f"📊 最终有效源: {len(final_sites)}")
+    print(f"🌟 其中 VIP/Spider 源: {len([s for s in final_sites if '★' in s['name'] or '🛡️' in s['name']])} 个")
 
 if __name__ == "__main__":
     main()
