@@ -1,37 +1,23 @@
 import requests
 import json
-import base64
 import re
 import concurrent.futures
 import os
-import time
-from urllib.parse import quote, urlparse
+import sys
+from urllib.parse import quote, urljoin
 
 # ================= 1. 配置区域 =================
 
 MY_GITHUB_TOKEN = "" 
 PROXIES = None 
 
-# 【个人仓库配置】
-GITHUB_USER = "guru2016"
-REPO_NAME = "tvbox-pro"
-BRANCH_NAME = "main"
-CLOUD_JAR_URL = f"https://cdn.jsdelivr.net/gh/{GITHUB_USER}/{REPO_NAME}@{BRANCH_NAME}/spider.jar"
+# 【宿主配置】
+# 我们以这个源为基础，只往里面添加东西，不改动它原有的核心
+BASE_URL = "http://www.饭太硬.com/tv"
+BASE_HOST = "http://www.饭太硬.com/"
 
-# 【排雷配置 - 核心修改】
-# 1. 深度清洗：剔除所有带独立 Jar 或 相对路径 的源，防止闪退
-STRICT_MODE = True 
-
-# 2. 数量限制：源太多也会导致低端盒子闪退，限制在前 100 个精品
-MAX_SITES_COUNT = 100
-
-# 3. 关键词配置
-VIP_KEYWORDS = ["饭太硬", "肥猫", "南风", "巧技", "FongMi", "道长", "小米", "荷城", "菜妮丝", "神器"]
-BLACKLIST = ["失效", "测试", "广告", "收费", "群", "加V", "挂壁", "Q群", "伦理", "福利", "成人", "情色", "引流", "弹幕", "更新"]
-TIMEOUT = 4
-
-SOURCE_URLS = [
-    "http://www.饭太硬.com/tv",
+# 【搜刮列表】(只从中提取通用 CMS/APP 接口)
+EXTERNAL_URLS = [
     "http://肥猫.com",
     "http://fty.xxooo.cf/tv",
     "https://毒盒.com/tv/",
@@ -77,295 +63,208 @@ SOURCE_URLS = [
     "http://xmbjm.fh4u.org/dc.txt"
 ]
 
-ENABLE_GITHUB_SEARCH = True
-MAX_GITHUB_RESULTS = 5
+# 【过滤配置】
+# 严禁引入 Spider(Type 3)，因为会和饭太硬的 Jar 冲突导致闪退
+ALLOWED_TYPES = [0, 1, 4] 
+BLACKLIST = ["失效", "测试", "广告", "收费", "群", "加V", "挂壁", "Q群", "伦理", "福利", "成人", "情色", "引流", "弹幕", "更新", "饭太硬"] # 饭太硬自己不用重复加
+TIMEOUT = 5
+MAX_WORKERS = 20
 
-# ================= 2. 基础工具函数 =================
+# ================= 2. 工具函数 =================
 
 def decode_content(content):
     if not content: return None
-    content = content.strip()
     try:
         return json.loads(content)
     except:
         pass
     try:
-        clean_content = content.replace('**', '').replace('o', '').strip() if content.startswith('**') else content
-        decoded = base64.b64decode(clean_content).decode('utf-8')
-        return json.loads(decoded)
+        # 处理简单的 Base64 或 干扰字符
+        clean = content.replace('**', '').replace('o', '').strip()
+        return json.loads(base64.b64decode(clean).decode('utf-8'))
     except:
-        pass
-    try:
-        match = re.search(r'\{.*\}', content, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-    except:
-        pass
+        try:
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if match: return json.loads(match.group())
+        except: pass
     return None
 
 def get_json(url):
     try:
-        safe_url = quote(url, safe=':/?&=')
-        headers = {"User-Agent": "Mozilla/5.0", "Referer": safe_url}
+        headers = {"User-Agent": "Mozilla/5.0"}
         res = requests.get(url, headers=headers, timeout=8, verify=False, proxies=PROXIES)
         res.encoding = 'utf-8'
         if res.status_code == 200:
             return decode_content(res.text)
-    except:
-        pass
+    except: pass
     return None
 
 def clean_name(name):
-    try:
-        name = re.sub(r'【.*?】|\[.*?\]|\(.*?\)', '', str(name))
-        name = name.replace("聚合", "").replace("蓝光", "").replace("专线", "").replace("API", "").strip()
-        return name if name else "未命名接口"
-    except:
-        return "未命名接口"
+    return re.sub(r'【.*?】|\[.*?\]|\(.*?\)', '', str(name)).replace("聚合", "").replace("蓝光", "").strip()
 
-# ================= 3. 核心：排雷与验证 =================
+# ================= 3. 核心逻辑 =================
 
-def is_safe_site(site):
-    """
-    【排雷函数】检查站点配置是否会导致闪退
-    """
-    # 1. 检查是否有独立的 jar 字段
-    # 如果一个源自带 jar，说明它不兼容我们的主 spider.jar，强行合并会导致冲突
-    if 'jar' in site and site['jar']:
-        # print(f"    [x] 剔除冲突Jar源: {site.get('name')}")
-        return False
-        
-    # 2. 检查 api 是否为相对路径 (以 . 开头)
-    # 我们是云端聚合，相对路径 (./lib/...) 在电视上绝对找不到文件
-    api = str(site.get('api', ''))
-    if api.startswith('.') or api.startswith('/'):
-        # print(f"    [x] 剔除相对路径源: {site.get('name')}")
-        return False
+def fetch_base_config():
+    """获取饭太硬原始配置，并修复路径"""
+    print(f">>> [1/5] 正在拉取宿主配置 (饭太硬): {BASE_URL} ...")
+    base = get_json(BASE_URL)
+    if not base:
+        print("!!! 无法获取饭太硬配置，脚本终止。")
+        sys.exit(1)
     
-    # 3. 检查 ext 是否为相对路径
-    ext = str(site.get('ext', ''))
-    if isinstance(site.get('ext'), str) and (ext.startswith('.') or ext.startswith('/')):
-        return False
+    # 修复 Spider Jar 路径 (转为绝对路径)
+    if 'spider' in base:
+        spider = base['spider']
+        if spider.startswith('./'):
+            base['spider'] = urljoin(BASE_HOST, spider)
+            print(f"    [√] 修复 Jar 路径: {base['spider']}")
+    
+    # 修复 Wallpaper 路径
+    if 'wallpaper' in base:
+        wp = base['wallpaper']
+        if wp.startswith('./'):
+            base['wallpaper'] = urljoin(BASE_HOST, wp)
 
-    return True
+    return base
 
-def fetch_daily_sources_from_website():
-    target_url = "http://www.饭太硬.com"
-    print(f"\n>>> [0/6] 正在访问官网抓取最新接口: {target_url} ...")
-    extracted_urls = []
+def fetch_external_candidates():
+    """获取外部所有源列表"""
+    print(f">>> [2/5] 正在搜刮外部候选源...")
+    all_urls = EXTERNAL_URLS.copy()
+    
+    # 简单的官网抓取
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        res = requests.get(target_url, headers=headers, timeout=10, verify=False, proxies=PROXIES)
-        res.encoding = 'utf-8'
-        pattern = r'(https?://[^\s"<>]+)'
-        matches = re.findall(pattern, res.text)
-        for url in matches:
-            if '.json' in url or '/tv' in url or '/api' in url:
-                extracted_urls.append(url)
-        extracted_urls = list(set(extracted_urls))
-        print(f"    [+] 官网抓取完成，提取到 {len(extracted_urls)} 个潜在链接。")
-        return extracted_urls
-    except:
+        res = requests.get(BASE_HOST, timeout=10, verify=False, proxies=PROXIES)
+        matches = re.findall(r'(https?://[^\s"<>]+)', res.text)
+        for u in matches:
+            if '.json' in u and u not in all_urls: all_urls.append(u)
+    except: pass
+
+    # 展开多仓
+    candidates_sites = []
+    
+    def process_url(url):
+        data = get_json(url)
+        if not data: return []
+        
+        # 如果是多仓，提取子链接
+        if 'urls' in data and isinstance(data['urls'], list):
+            sub_sites = []
+            for item in data['urls']:
+                if 'url' in item:
+                    sub_data = get_json(item['url'])
+                    if sub_data and 'sites' in sub_data:
+                        sub_sites.extend(sub_data['sites'])
+            return sub_sites
+            
+        # 如果是单仓，提取 sites
+        if 'sites' in data:
+            return data['sites']
         return []
 
-def fetch_github_sources():
-    print(">>> [1/6] 正在连接 GitHub 探索新源...")
-    try:
-        token = os.getenv("GH_TOKEN") or MY_GITHUB_TOKEN
-        if "ghp_" not in token: return []
-        urls = []
-        headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
-        api = "https://api.github.com/search/code?q=filename:json+spider+sites+tvbox&sort=indexed&order=desc"
-        r = requests.get(api, headers=headers, timeout=10, verify=False, proxies=PROXIES)
-        if r.status_code == 200:
-            items = r.json().get('items', [])
-            for item in items[:MAX_GITHUB_RESULTS]:
-                raw = item.get('html_url', '').replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/')
-                if raw: urls.append(raw)
-    except: pass
-    return urls
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(process_url, url): url for url in all_urls}
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            if res: candidates_sites.extend(res)
+            
+    print(f"    [+] 搜集到 {len(candidates_sites)} 个潜在接口")
+    return candidates_sites
 
-def expand_multirepo(urls):
-    print(f"\n>>> [2/6] 正在解析 {len(urls)} 个初始地址...")
-    final_single_repos = []
-    def check_url(url):
+def validate_and_filter(sites):
+    """筛选：只留通用接口，且必须能连通"""
+    print(f">>> [3/5] 正在进行兼容性筛选与测速...")
+    
+    valid_sites = []
+    seen_api = set()
+    
+    # 预处理：先去重，且只保留 Type 0/1/4
+    tasks = []
+    for s in sites:
+        name = s.get('name', '')
+        api = s.get('api', '')
+        stype = s.get('type', 0)
+        
+        # 1. 类型过滤 (拒绝 Type 3 Spider，防止冲突)
+        if stype not in ALLOWED_TYPES: continue
+        
+        # 2. 关键词过滤
+        if any(bw in name for bw in BLACKLIST): continue
+        
+        # 3. 去重
+        if api in seen_api: continue
+        seen_api.add(api)
+        
+        tasks.append(s)
+
+    # 并发测速
+    def check(site):
         try:
-            data = get_json(url)
-            if not data: return None
-            if 'urls' in data and isinstance(data['urls'], list):
-                sub_urls = []
-                for item in data['urls']:
-                    if isinstance(item, dict) and 'url' in item:
-                        sub_urls.append(item['url'])
-                return ("MULTI", sub_urls)
-            elif 'sites' in data:
-                return ("SINGLE", url)
+            # 深度检测：尝试获取 JSON
+            res = requests.get(site['api'], timeout=TIMEOUT, verify=False, proxies=PROXIES)
+            if res.status_code == 200:
+                # 简单验证是否为有效 JSON (防止 HTML 伪装)
+                if res.text.strip().startswith('{') or res.text.strip().startswith('['):
+                    latency = int(res.elapsed.total_seconds() * 1000)
+                    site['_latency'] = latency
+                    site['name'] = f"🚀 {clean_name(site['name'])}"
+                    return site
         except: pass
         return None
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_url = {executor.submit(check_url, url): url for url in urls}
-        for future in concurrent.futures.as_completed(future_to_url):
-            try:
-                res = future.result()
-                if res:
-                    rtype, content = res
-                    if rtype == "SINGLE": final_single_repos.append(content)
-                    elif rtype == "MULTI": final_single_repos.extend(content)
-            except: pass
-    return list(set(final_single_repos))
-
-def deep_validate_source(api_url, site_type):
-    try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r = requests.get(api_url, headers=headers, timeout=TIMEOUT, verify=False, proxies=PROXIES)
-        if r.status_code != 200: return False, 9999
-        latency = int(r.elapsed.total_seconds() * 1000)
-        if not r.text or len(r.text) < 10: return False, latency
-        if site_type in [0, 1, 4]:
-            try:
-                data = r.json()
-                if 'class' in data or 'list' in data or data.get('code') in [1, 200]:
-                    return True, latency
-                return False, latency
-            except: return False, latency
-        return True, latency
-    except: return False, 9999
-
-def test_site_latency(site):
-    try:
-        name = site.get('name', '')
-        api = site.get('api', '')
-        site_type = site.get('type', 0)
-        
-        # 0. 基础排雷 (防止闪退的关键)
-        if not is_safe_site(site):
-            return None
-
-        # 1. 关键词过滤
-        for kw in BLACKLIST:
-            if kw in name: return None
-        if site_type not in [0, 1, 3, 4]: return None
-
-        # 2. 深度检测
-        is_valid, latency = deep_validate_source(api, site_type)
-        if not is_valid: return None
-
-        site['_latency'] = latency
-        site['name'] = clean_name(name)
-        
-        is_vip = any(vip in name for vip in VIP_KEYWORDS)
-        site['_is_vip'] = is_vip
-        
-        if is_vip: site['name'] = f"★ {site['name']}"
-        elif latency < 1000: site['name'] = f"🚀 {site['name']}"
-        else: site['name'] = f"🟢 {site['name']}"
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(check, s) for s in tasks]
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            if res: valid_sites.append(res)
             
-        return site
-    except: return None
+    # 按速度排序
+    valid_sites.sort(key=lambda x: x['_latency'])
+    # 清理临时字段
+    for s in valid_sites: s.pop('_latency', None)
+    
+    print(f"    [√] 筛选出 {len(valid_sites)} 个优质通用源")
+    return valid_sites
 
 def main():
-    try:
-        requests.packages.urllib3.disable_warnings()
-        print(">>> 启动 TVBox 防闪退终极版 v14.0")
-        
-        all_urls = SOURCE_URLS.copy()
-        try:
-            website_urls = fetch_daily_sources_from_website()
-            if website_urls: all_urls.extend(website_urls)
-        except: pass
-
-        if ENABLE_GITHUB_SEARCH: all_urls.extend(fetch_github_sources())
-        
-        all_config_urls = expand_multirepo(all_urls)
-        
-        print(f"\n>>> [3/6] 深度扫描 {len(all_config_urls)} 个配置...")
-        
-        # 提取壁纸等辅助信息
-        parses = []
-        flags = []
-        wallpaper = "https://api.kdcc.cn"
-        
-        raw_sites = []
-        for url in all_config_urls:
-            data = get_json(url)
-            if not data: continue
+    requests.packages.urllib3.disable_warnings()
+    print(">>> 启动 TVBox 寄生模式优化脚本 v15.0")
+    
+    # 1. 获取宿主 (饭太硬)
+    base_config = fetch_base_config()
+    
+    # 2. 获取并清洗外部源
+    raw_external = fetch_external_candidates()
+    verified_external = validate_and_filter(raw_external)
+    
+    # 3. 融合 (Grafting)
+    print(f">>> [4/5] 正在进行配置融合...")
+    
+    # 保留宿主原本的所有 site，但给它们加上标记
+    host_sites = base_config.get('sites', [])
+    for s in host_sites:
+        # 给饭太硬原版加个星星，排在最前
+        if "饭太硬" not in s['name']:
+            s['name'] = f"★ {s['name']}"
             
-            # 收集 Parse 和 Flags (去重)
-            if data.get('parses'): 
-                for p in data['parses']:
-                    if p not in parses: parses.append(p)
-            if data.get('flags'):
-                for f in data['flags']:
-                    if f not in flags: flags.append(f)
-            if data.get('wallpaper'): wallpaper = data['wallpaper']
-
-            # 提取站点
-            for s in data.get('sites', []):
-                # 预处理：如果是 Spider 类型(3)，我们强制删掉它的 jar 字段
-                # 让它尝试使用我们的主 Jar，如果能用就赚了，不能用就在后面验证阶段被刷掉
-                if s.get('type') == 3 and 'jar' in s:
-                    # s.pop('jar') # 方案A：尝试移除jar看能不能兼容
-                    # 方案B：直接丢弃带Jar的（更稳妥，防止不兼容闪退）
-                    continue 
-                
-                raw_sites.append(s)
-
-        print(f"\n>>> [4/6] 正在排雷与质检 (原始: {len(raw_sites)} 个)...")
+    # 将外部优质源追加到后面
+    # 截取前 50 个最快的外部源，防止列表过长导致内存溢出
+    max_add = 50
+    if len(verified_external) > max_add:
+        verified_external = verified_external[:max_add]
         
-        unique_sites = {}
-        tasks = []
-        # 去重
-        seen_api = set()
-        for s in raw_sites:
-            api = s.get('api')
-            if api and api not in seen_api:
-                tasks.append(s)
-                seen_api.add(api)
-
-        valid_sites = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
-            futures = [executor.submit(test_site_latency, site) for site in tasks]
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    res = future.result()
-                    if res: valid_sites.append(res)
-                except: pass
-
-        print(f"\n>>> [5/6] 智能排序与截断...")
-        # 排序
-        final_sites = sorted(valid_sites, key=lambda x: (not x.get('_is_vip', False), x.get('_latency', 9999)))
+    final_sites = host_sites + verified_external
+    base_config['sites'] = final_sites
+    
+    # 4. 保存
+    print(f">>> [5/5] 保存配置...")
+    with open("my_tvbox.json", 'w', encoding='utf-8') as f:
+        json.dump(base_config, f, ensure_ascii=False, indent=2)
         
-        # 清理字段
-        for s in final_sites:
-            s.pop('_latency', None)
-            s.pop('_is_vip', None)
-            
-        # 【重要】数量限制，防止低端设备内存溢出闪退
-        if len(final_sites) > MAX_SITES_COUNT:
-            print(f"    [!] 源数量过多 ({len(final_sites)}个)，保留前 {MAX_SITES_COUNT} 个优质源防止闪退。")
-            final_sites = final_sites[:MAX_SITES_COUNT]
-
-        # 组装最终 JSON
-        final_config = {
-            "spider": CLOUD_JAR_URL, 
-            "wallpaper": wallpaper,
-            "sites": final_sites,
-            "lives": [],
-            "parses": parses[:10], # 限制解析数量
-            "flags": flags if flags else [] # 确保不是 null
-        }
-        
-        with open("my_tvbox.json", 'w', encoding='utf-8') as f:
-            json.dump(final_config, f, ensure_ascii=False, indent=2)
-
-        print(f"\n✅ 完成！已剔除雷区。")
-        print(f"📊 最终可用源: {len(final_sites)}")
-        
-    except Exception as e:
-        print(f"\n[!!!] 脚本运行出错: {e}")
-        import sys
-        sys.exit(0)
+    print(f"\n✅ 成功！")
+    print(f"📊 宿主源: {len(host_sites)} 个")
+    print(f"🚀 挂载源: {len(verified_external)} 个 (已剔除不兼容的Jar源)")
+    print(f"📂 核心 Jar: {base_config.get('spider')}")
 
 if __name__ == "__main__":
     main()
