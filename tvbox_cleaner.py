@@ -9,16 +9,15 @@ from urllib.parse import quote, urljoin
 
 # ================= 1. 配置区域 =================
 
-# 【全局唯一 Jar：用户指定代理版】
+# 【全局唯一 Jar：用户指定代理地址】
 GLOBAL_SAFE_JAR = "http://hk.gh-proxy/https://raw.githubusercontent.com/yoursmile66/TVBox/main/jar/fan.jar"
 
 # 【壁纸】
 WALLPAPER_URL = "https://api.kdcc.cn"
 
-# 【搜刮列表：GitHub 专供版】
-# 这些源在 GitHub Actions 环境下连接成功率最高
+# 【搜刮列表】(恢复 v35 的列表，这个列表在 GitHub 环境下最稳)
 EXTERNAL_URLS = [
-    # --- 核心大厂 (GitHub 镜像) ---
+    # --- 核心大厂 (GitHub 镜像 - 速度极快) ---
     "https://raw.githubusercontent.com/yoursmile66/TVBox/main/XC.json",      # 南风
     "https://raw.githubusercontent.com/guot55/YGBH/main/vip2.json",          # 宝盒
     "https://raw.githubusercontent.com/chitue/dongliTV/main/api.json",       # 动力
@@ -45,17 +44,15 @@ EXTERNAL_URLS = [
 # 【过滤配置】
 ALLOWED_TYPES = [0, 1, 3, 4] 
 
-# 【黑名单：去广告 + 去网盘】
+# 【通用广告黑名单】
 BLACKLIST = [
-    # --- 广告/垃圾 ---
     "失效", "测试", "广告", "收费", "群", "加V", "挂壁", "Q群", "伦理", "福利", "成人", "情色", 
     "引流", "更新", "扫码", "微信", "企鹅", "APP", "下载", "推广", "验证", "激活", "授权", 
-    "雷鲸", "玩偶哥哥", "助手", "专线", "彩蛋", "直播", "77.110", "mingming",
-    
-    # --- 网盘/云盘 (新增过滤) ---
-    "网盘", "云盘", "阿里云", "夸克", "UC", "115", "Drive", "Pan", "推送", "存储", "盘搜", 
-    "Ali", "Quark", "Yun", "Telegraph"
+    "雷鲸", "玩偶哥哥", "助手", "专线", "彩蛋", "直播", "77.110", "mingming"
 ]
+
+# 【网盘特征词】(用于精准剔除网盘)
+DISK_KEYWORDS = ["阿里云", "夸克", "UC网盘", "115", "网盘", "云盘", "推送", "存储", "Drive", "Ali", "Quark"]
 
 TIMEOUT = 20       
 MAX_WORKERS = 30   
@@ -79,7 +76,7 @@ def decode_content(content):
 def get_json(url):
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
-        res = requests.get(url, headers=headers, timeout=TIMEOUT, verify=False, proxies=PROXIES)
+        res = requests.get(url, headers=headers, timeout=TIMEOUT, verify=False)
         res.encoding = 'utf-8'
         if res.status_code == 200:
             return decode_content(res.text)
@@ -103,23 +100,35 @@ def fetch_and_process(url):
     extracted_sites = []
     
     def process_site(site):
-        # 1. 强制剥离 Jar
+        # 1. 强制剥离 Jar (防止闪退)
         if 'jar' in site:
             del site['jar']
             
         name = site.get('name', '')
         api = str(site.get('api', ''))
-        key = str(site.get('key', ''))
         
-        # 2. 深度网盘过滤 (API 检查)
-        # 很多网盘源名字不带"网盘"，但 API 里有特征
-        disk_keywords = ['Ali', 'Quark', 'UC', '115', 'Drive', 'Pan', 'Push']
-        if any(k.lower() in api.lower() for k in disk_keywords): return None
-        if any(k.lower() in key.lower() for k in disk_keywords): return None
-        
-        # 3. 关键词黑名单 (名字检查)
+        # 2. 广告过滤
         if any(bw in name for bw in BLACKLIST): return None
         if any(char in name for char in ['💰', '👗', '👠', '✨', '⚡', '🔥', '免费', '送', '加V']): return None
+        
+        # 3. 【核心修正】精准过滤网盘
+        # 不再查 "Yun" 或 "Pan" 这种泛词，只查特定的网盘特征
+        # 只要名字里带有明确的网盘词，或者 API 是网盘接口，就杀掉
+        is_disk = False
+        
+        # 检查名字 (中文精准匹配)
+        if any(k in name for k in ["阿里云", "夸克", "UC网盘", "115", "网盘", "推送"]):
+            is_disk = True
+            
+        # 检查 API (英文精准匹配，防止误杀 "YunBo" 等)
+        if not is_disk:
+            api_lower = api.lower()
+            if "ali" in api_lower or "quark" in api_lower or "ucpan" in api_lower or "115.com" in api_lower or "drive" in api_lower:
+                is_disk = True
+        
+        if is_disk:
+            # print(f"       [x] 剔除网盘: {name}")
+            return None
         
         # 4. 标记与美化
         site['name'] = clean_name(name)
@@ -127,9 +136,9 @@ def fetch_and_process(url):
         site['quickSearch'] = 1
         
         if site.get('type') == 3:
-            site['name'] = f"🛡️ {site['name']}" # 爬虫
+            site['name'] = f"🛡️ {site['name']}" 
         else:
-            site['name'] = f"🚀 {site['name']}" # CMS
+            site['name'] = f"🚀 {site['name']}" 
             
         return site
 
@@ -154,7 +163,7 @@ def fetch_and_process(url):
 def main():
     try:
         requests.packages.urllib3.disable_warnings()
-        print(">>> 启动 TVBox v36.0 (代理Jar/去网盘版)")
+        print(">>> 启动 TVBox v37.0 (GitHub源/去网盘修正版)")
         
         all_sites = []
         unique_urls = list(set(EXTERNAL_URLS))
@@ -180,14 +189,14 @@ def main():
                 unique_sites.append(s)
                 seen_api.add(api)
                 
-        # 3. 截断
+        # 3. 截断 (保留充足的资源)
         max_sites = 250
         if len(unique_sites) > max_sites:
             unique_sites = unique_sites[:max_sites]
         
         # 4. 生成配置
         config = {
-            "spider": GLOBAL_SAFE_JAR, # 你的代理 Jar 地址
+            "spider": GLOBAL_SAFE_JAR, # 你指定的代理地址
             "wallpaper": WALLPAPER_URL,
             "sites": unique_sites,
             "lives": [],
@@ -200,7 +209,6 @@ def main():
             
         print(f"\n✅ 完成！")
         print(f"📊 聚合接口: {len(unique_sites)} 个")
-        print(f"🧹 已清理所有网盘/推送到源")
         print(f"🛡️ 核心 Jar: {GLOBAL_SAFE_JAR}")
         
     except Exception as e:
