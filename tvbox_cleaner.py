@@ -10,18 +10,15 @@ from urllib.parse import quote, urljoin
 # ================= 1. 配置区域 =================
 
 # 【全局唯一 Jar：用户指定 GitHub 直连】
-# 注意：国内网络直接访问此链接可能会慢或失败，但在 TVBox 内部通常能自动处理 302 跳转
 GLOBAL_SAFE_JAR = "https://github.com/guru2016/tvbox-pro/raw/refs/heads/main/custom_spider.jar"
 
-# 【壁纸】(替换道长不稳定的壁纸)
+# 【壁纸】
 WALLPAPER_URL = "https://api.kdcc.cn"
 
 # 【底板来源：道长 dr_py 官方配置】
-# 我们将以这个文件的结构（parses, rules, flags）为基础进行修改
 BASE_CONFIG_URL = "https://raw.githubusercontent.com/hjdhnx/dr_py/main/tvbox.json"
 
 # 【追加搜刮列表】
-# 在道长的基础上，添加这些优质源
 ADDITIONAL_URLS = [
     "http://www.饭太硬.com/tv",
     "http://肥猫.com",
@@ -36,18 +33,25 @@ ADDITIONAL_URLS = [
 # 【过滤配置】
 ALLOWED_TYPES = [0, 1, 3, 4] 
 
-# 【通用黑名单】
+# 【通用黑名单】(去广告)
 BLACKLIST = [
     "失效", "测试", "广告", "收费", "群", "加V", "挂壁", "Q群", "伦理", "福利", "成人", "情色", 
     "引流", "更新", "扫码", "微信", "企鹅", "APP", "下载", "推广", "验证", "激活", "授权", 
     "雷鲸", "玩偶哥哥", "助手", "专线", "彩蛋", "直播", "77.110", "mingming", "摸鱼"
 ]
 
-# 【网盘特征词】(用于清洗道长原来的网盘接口)
-# 遇到这些词，直接杀掉
-DISK_KEYWORDS = [
-    "阿里云", "夸克", "UC网盘", "115", "网盘", "云盘", "推送", "存储", 
-    "Drive", "Ali", "Quark", "Alist", "1359527.xyz" # 屏蔽道长私有服务器
+# 【绞杀名单】(只要出现这些字，立刻删除)
+# 包含：盘、搜、Alist、以及各大网盘英文名
+KILL_KEYWORDS = [
+    "盘",       # 杀掉：网盘、云盘、阿里云盘、夸克盘、百度盘、硬盘...
+    "搜",       # 杀掉：盘搜、热搜、搜索、阿里搜、Yiso...
+    "alist",    # 杀掉：所有 Alist 相关的
+    "drive",    # 杀掉：Google Drive 等
+    "ali",      # 杀掉：AliYun
+    "quark",    # 杀掉：夸克
+    "uc",       # 杀掉：UC
+    "115",      # 杀掉：115
+    "1359527"   # 杀掉：道长私有服务器(通常关联复杂爬虫)
 ]
 
 TIMEOUT = 20       
@@ -72,7 +76,6 @@ def decode_content(content):
 def get_json(url):
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
-        # verify=False 忽略证书错误
         res = requests.get(url, headers=headers, timeout=TIMEOUT, verify=False)
         res.encoding = 'utf-8'
         if res.status_code == 200:
@@ -96,18 +99,22 @@ def process_site(site):
     if 'jar' in site:
         del site['jar']
         
-    name = site.get('name', '')
+    name = str(site.get('name', ''))
     api = str(site.get('api', ''))
+    key = str(site.get('key', ''))
     
-    # 2. 网盘 & Alist 过滤
-    is_disk = False
-    if any(k in name for k in DISK_KEYWORDS): is_disk = True
-    if not is_disk:
-        api_lower = api.lower()
-        if any(k.lower() in api_lower for k in DISK_KEYWORDS): is_disk = True
-        
-    if is_disk:
-        return None
+    # 转小写方便匹配
+    name_lower = name.lower()
+    api_lower = api.lower()
+    key_lower = key.lower()
+    
+    # 2. 【核心】绞杀逻辑 (去盘、去搜、去Alist)
+    # 只要名字、API地址、或者Key里包含黑名单词汇，直接剔除
+    for kw in KILL_KEYWORDS:
+        kw_lower = kw.lower()
+        if kw_lower in name_lower: return None
+        if kw_lower in api_lower: return None
+        if kw_lower in key_lower: return None
 
     # 3. 广告过滤
     if any(bw in name for bw in BLACKLIST): return None
@@ -117,10 +124,7 @@ def process_site(site):
     site['searchable'] = 1 
     site['quickSearch'] = 1
     
-    # 5. 特殊处理：如果 Type 3 接口的 API 看起来是需要道长私有服务器的(比如 drpy.min.js)，
-    # 因为我们换了 Jar，这些大概率会崩。建议保留标准 CMS (Type 0/1) 和兼容性好的 Type 3。
-    # 这里我们只保留名字里带 "drpy" 但 API 也是 http 的，或者标准的 CSP。
-    
+    # 5. 打标
     if site.get('type') == 3:
         site['name'] = f"🛡️ {site['name']}" 
     else:
@@ -129,16 +133,12 @@ def process_site(site):
     return site
 
 def fetch_sites_from_url(url):
-    """
-    从指定 URL 抓取并清洗 sites
-    """
     print(f"    -> 抓取扩展源: {url}")
     data = get_json(url)
     if not data: return []
     
     extracted = []
     
-    # 处理多仓
     if 'urls' in data and isinstance(data['urls'], list):
         for item in data['urls']:
             if 'url' in item:
@@ -148,7 +148,6 @@ def fetch_sites_from_url(url):
                         p = process_site(s)
                         if p: extracted.append(p)
     
-    # 处理单仓
     if 'sites' in data:
         for s in data['sites']:
             p = process_site(s)
@@ -159,24 +158,24 @@ def fetch_sites_from_url(url):
 def main():
     try:
         requests.packages.urllib3.disable_warnings()
-        print(">>> 启动 TVBox v41.0 (道长底板+私有Jar+融合版)")
+        print(">>> 启动 TVBox v42.0 (道长底板+去盘去搜去Alist+GitHub直连)")
         
         # 1. 获取道长底板配置
-        print(f">>> [1/3] 下载道长底板配置: {BASE_CONFIG_URL}")
+        print(f">>> [1/3] 下载道长底板配置...")
         base_config = get_json(BASE_CONFIG_URL)
         
         if not base_config:
-            print("!!! 无法下载底板，将使用空模板")
             base_config = {"spider": "", "sites": [], "parses": [], "flags": [], "rules": []}
             
-        # 2. 修改底板核心参数
-        base_config['spider'] = GLOBAL_SAFE_JAR   # 替换 Jar
-        base_config['wallpaper'] = WALLPAPER_URL  # 替换壁纸
-        base_config['drives'] = []                # 清空网盘挂载 (核心去网盘步骤)
+        # 2. 修改核心参数
+        base_config['spider'] = GLOBAL_SAFE_JAR   # 你的 GitHub 直连 Jar
+        base_config['wallpaper'] = WALLPAPER_URL 
+        
+        # 【重要】彻底清空 drives (网盘挂载)
+        base_config['drives'] = []                
         
         # 3. 清洗道长原有的 Sites
-        # 道长的源里混合了大量网盘，需要清洗
-        print(">>> [2/3] 清洗道长原有接口...")
+        print(">>> [2/3] 清洗底板接口 (剔除盘/搜/Alist)...")
         clean_base_sites = []
         if 'sites' in base_config:
             for s in base_config['sites']:
@@ -185,7 +184,7 @@ def main():
                     clean_base_sites.append(processed)
         
         # 4. 并发抓取追加源
-        print(f">>> [3/3] 融合其他 {len(ADDITIONAL_URLS)} 个大厂源...")
+        print(f">>> [3/3] 融合其他大厂源...")
         additional_sites = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             future_to_url = {executor.submit(fetch_sites_from_url, url): url for url in ADDITIONAL_URLS}
@@ -196,7 +195,6 @@ def main():
                 except: pass
         
         # 5. 合并与去重
-        # 顺序：道长清洗后的源 + 追加的大厂源
         all_sites = clean_base_sites + additional_sites
         unique_sites = []
         seen_api = set()
@@ -208,8 +206,8 @@ def main():
                 seen_api.add(api)
         
         # 截断
-        if len(unique_sites) > 350:
-            unique_sites = unique_sites[:350]
+        if len(unique_sites) > 300:
+            unique_sites = unique_sites[:300]
             
         base_config['sites'] = unique_sites
         
@@ -219,8 +217,7 @@ def main():
             
         print(f"\n✅ 完成！")
         print(f"📊 最终接口: {len(unique_sites)} 个")
-        print(f"🧬 继承: 道长 Parses/Rules/Flags")
-        print(f"🧹 剔除: 道长 Drives (网盘挂载)")
+        print(f"🚫 已拦截关键词: 盘、搜、Alist、Drive、Ali、Quark")
         print(f"🛡️ 核心 Jar: {GLOBAL_SAFE_JAR}")
         
     except Exception as e:
