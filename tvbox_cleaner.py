@@ -15,19 +15,19 @@ GLOBAL_SAFE_JAR = "https://github.com/guru2016/tvbox-pro/raw/refs/heads/main/cus
 # 【壁纸】
 WALLPAPER_URL = "https://api.kdcc.cn"
 
-# 【底板来源：道长 dr_py 官方配置】
-BASE_CONFIG_URL = "https://raw.githubusercontent.com/hjdhnx/dr_py/main/tvbox.json"
+# 【底板来源：饭太硬官方配置】
+BASE_CONFIG_URL = "https://raw.githubusercontent.com/fantaite/TVBox/main/tvbox.json"
 
-# 【追加搜刮列表】
+# 【追加搜刮列表（优化，高德、菜妮丝、大厂源优先）】
 ADDITIONAL_URLS = [
-    "http://www.饭太硬.com/tv",
-    "http://肥猫.com",
     "https://raw.githubusercontent.com/yoursmile66/TVBox/main/XC.json",      # 南风
     "https://raw.githubusercontent.com/guot55/YGBH/main/vip2.json",          # 宝盒
     "https://raw.githubusercontent.com/chitue/dongliTV/main/api.json",       # 动力
-    "https://cdn.gitmirror.com/bb/xduo/libs/master/index.json",              # 道长镜像
-    "https://api.hgyx.vip/hgyx.json",
-    "https://tv.菜妮丝.top"
+    "https://cdn.gitmirror.com/bb/xduo/libs/master/index.json",             # 道长镜像
+    "https://raw.githubusercontent.com/gaode-tvbox/TVBox/main/index.json",  # 高德源
+    "https://api.hgyx.vip/hgyx.json",                                       # HGYX VIP
+    "https://tv.菜妮丝.top",                                               # 菜妮丝
+    "https://raw.githubusercontent.com/fantaite/TVBox/main/XC.json"         # 饭太硬附加源
 ]
 
 # 【过滤配置】
@@ -41,17 +41,8 @@ BLACKLIST = [
 ]
 
 # 【绞杀名单】(只要出现这些字，立刻删除)
-# 包含：盘、搜、Alist、以及各大网盘英文名
 KILL_KEYWORDS = [
-    "盘",       # 杀掉：网盘、云盘、阿里云盘、夸克盘、百度盘、硬盘...
-    "搜",       # 杀掉：盘搜、热搜、搜索、阿里搜、Yiso...
-    "alist",    # 杀掉：所有 Alist 相关的
-    "drive",    # 杀掉：Google Drive 等
-    "ali",      # 杀掉：AliYun
-    "quark",    # 杀掉：夸克
-    "uc",       # 杀掉：UC
-    "115",      # 杀掉：115
-    "1359527"   # 杀掉：道长私有服务器(通常关联复杂爬虫)
+    "盘", "搜", "alist", "drive", "ali", "quark", "uc", "115", "1359527"
 ]
 
 TIMEOUT = 20       
@@ -92,10 +83,6 @@ def clean_name(name):
 # ================= 3. 核心处理逻辑 =================
 
 def process_site(site):
-    """
-    清洗单个 Site 对象
-    """
-    # 1. 强制剥离 Jar
     if 'jar' in site:
         del site['jar']
         
@@ -103,28 +90,22 @@ def process_site(site):
     api = str(site.get('api', ''))
     key = str(site.get('key', ''))
     
-    # 转小写方便匹配
     name_lower = name.lower()
     api_lower = api.lower()
     key_lower = key.lower()
     
-    # 2. 【核心】绞杀逻辑 (去盘、去搜、去Alist)
-    # 只要名字、API地址、或者Key里包含黑名单词汇，直接剔除
     for kw in KILL_KEYWORDS:
         kw_lower = kw.lower()
         if kw_lower in name_lower: return None
         if kw_lower in api_lower: return None
         if kw_lower in key_lower: return None
 
-    # 3. 广告过滤
     if any(bw in name for bw in BLACKLIST): return None
     
-    # 4. 标记与美化
     site['name'] = clean_name(name)
     site['searchable'] = 1 
     site['quickSearch'] = 1
     
-    # 5. 打标
     if site.get('type') == 3:
         site['name'] = f"🛡️ {site['name']}" 
     else:
@@ -134,47 +115,45 @@ def process_site(site):
 
 def fetch_sites_from_url(url):
     print(f"    -> 抓取扩展源: {url}")
-    data = get_json(url)
-    if not data: return []
-    
-    extracted = []
-    
-    if 'urls' in data and isinstance(data['urls'], list):
-        for item in data['urls']:
-            if 'url' in item:
-                sub = get_json(item['url'])
-                if sub and 'sites' in sub:
-                    for s in sub['sites']:
-                        p = process_site(s)
-                        if p: extracted.append(p)
-    
-    if 'sites' in data:
-        for s in data['sites']:
-            p = process_site(s)
-            if p: extracted.append(p)
-            
-    return extracted
+    try:
+        data = get_json(url)
+        if not data: return []
+        
+        extracted = []
+        
+        if 'urls' in data and isinstance(data['urls'], list):
+            for item in data['urls']:
+                if 'url' in item:
+                    sub = get_json(item['url'])
+                    if sub and 'sites' in sub:
+                        for s in sub['sites']:
+                            p = process_site(s)
+                            if p: extracted.append(p)
+        
+        if 'sites' in data:
+            for s in data['sites']:
+                p = process_site(s)
+                if p: extracted.append(p)
+                
+        return extracted
+    except Exception as e:
+        print(f"⚠️ 抓取失败: {url} -> {e}")
+        return []
 
 def main():
     try:
         requests.packages.urllib3.disable_warnings()
-        print(">>> 启动 TVBox v42.0 (道长底板+去盘去搜去Alist+GitHub直连)")
+        print(">>> 启动 TVBox (饭太硬底板+去盘去搜去Alist+GitHub直连)")
         
-        # 1. 获取道长底板配置
-        print(f">>> [1/3] 下载道长底板配置...")
+        print(f">>> [1/3] 下载饭太硬底板配置...")
         base_config = get_json(BASE_CONFIG_URL)
-        
         if not base_config:
             base_config = {"spider": "", "sites": [], "parses": [], "flags": [], "rules": []}
             
-        # 2. 修改核心参数
-        base_config['spider'] = GLOBAL_SAFE_JAR   # 你的 GitHub 直连 Jar
+        base_config['spider'] = GLOBAL_SAFE_JAR
         base_config['wallpaper'] = WALLPAPER_URL 
+        base_config['drives'] = []
         
-        # 【重要】彻底清空 drives (网盘挂载)
-        base_config['drives'] = []                
-        
-        # 3. 清洗道长原有的 Sites
         print(">>> [2/3] 清洗底板接口 (剔除盘/搜/Alist)...")
         clean_base_sites = []
         if 'sites' in base_config:
@@ -183,18 +162,18 @@ def main():
                 if processed:
                     clean_base_sites.append(processed)
         
-        # 4. 并发抓取追加源
         print(f">>> [3/3] 融合其他大厂源...")
         additional_sites = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             future_to_url = {executor.submit(fetch_sites_from_url, url): url for url in ADDITIONAL_URLS}
             for future in concurrent.futures.as_completed(future_to_url):
+                url = future_to_url[future]
                 try:
                     sites = future.result()
                     if sites: additional_sites.extend(sites)
-                except: pass
+                except Exception as e:
+                    print(f"⚠️ 追加源抓取失败: {url} -> {e}")
         
-        # 5. 合并与去重
         all_sites = clean_base_sites + additional_sites
         unique_sites = []
         seen_api = set()
@@ -205,13 +184,11 @@ def main():
                 unique_sites.append(s)
                 seen_api.add(api)
         
-        # 截断
         if len(unique_sites) > 300:
             unique_sites = unique_sites[:300]
             
         base_config['sites'] = unique_sites
         
-        # 6. 保存
         with open("my_tvbox.json", 'w', encoding='utf-8') as f:
             json.dump(base_config, f, ensure_ascii=False, indent=2)
             
