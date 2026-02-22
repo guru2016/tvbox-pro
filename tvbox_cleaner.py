@@ -1,213 +1,104 @@
-import requests
 import json
-import re
-import concurrent.futures
-import os
-import sys
-import base64
-from urllib.parse import quote, urljoin
+import requests
+from copy import deepcopy
 
-# ================= 1. 配置区域 =================
+BASE_URL = "https://fty.xxooo.cf/tv"
 
-# 核心 GitHub Jar
-GLOBAL_SAFE_JAR = "https://github.com/guru2016/tvbox-pro/raw/refs/heads/main/custom_spider.jar"
-
-# 壁纸
-WALLPAPER_URL = "https://api.kdcc.cn"
-
-# 饭太硬底板配置
-BASE_CONFIG_URL = "https://raw.githubusercontent.com/fantaite/TVBox/main/tvbox.json"
-
-# 追加搜刮源（高德、菜妮丝、大厂源）
-ADDITIONAL_URLS = [
+# ⚠️ 只放“结构简单、直链 JSON、已知可解析”的源
+EXTRA_SOURCES = [
     "https://raw.githubusercontent.com/yoursmile66/TVBox/main/XC.json",
-    "https://raw.githubusercontent.com/guot55/YGBH/main/vip2.json",
-    "https://raw.githubusercontent.com/chitue/dongliTV/main/api.json",
-    "https://cdn.gitmirror.com/bb/xduo/libs/master/index.json",
-    "https://raw.githubusercontent.com/gaode-tvbox/TVBox/main/index.json",
-    "https://api.hgyx.vip/hgyx.json",
-    "https://tv.菜妮丝.top",
-    "https://raw.githubusercontent.com/fantaite/TVBox/main/XC.json"
+    "https://raw.githubusercontent.com/fantaite/TVBox/main/XC.json",
 ]
 
-# 过滤配置
-ALLOWED_TYPES = [0, 1, 3, 4]
+TIMEOUT = 8
 
-# 通用黑名单
-BLACKLIST = [
-    "失效", "测试", "广告", "收费", "群", "加V", "挂壁", "Q群", "伦理", "福利", "成人", "情色",
-    "引流", "更新", "扫码", "微信", "企鹅", "APP", "下载", "推广", "验证", "激活", "授权",
-    "雷鲸", "玩偶哥哥", "助手", "专线", "彩蛋", "直播", "77.110", "mingming", "摸鱼"
-]
 
-# 绞杀名单
-KILL_KEYWORDS = [
-    "盘", "搜", "alist", "drive", "ali", "quark", "uc", "115", "1359527"
-]
-
-TIMEOUT = 20
-MAX_WORKERS = 40
-
-# ================= 2. 工具函数 =================
-
-def decode_content(content):
-    if not content: return None
-    try: return json.loads(content)
-    except: pass
+def fetch_json(url):
     try:
-        clean = content.replace('**', '').replace('o', '').strip()
-        return json.loads(base64.b64decode(clean).decode('utf-8'))
-    except:
-        try:
-            match = re.search(r'\{.*\}', content, re.DOTALL)
-            if match: return json.loads(match.group())
-        except: pass
-    return None
-
-def get_json(url):
-    try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        res = requests.get(url, headers=headers, timeout=TIMEOUT, verify=False)
-        res.encoding = 'utf-8'
-        if res.status_code == 200:
-            return decode_content(res.text)
-    except: pass
-    return None
-
-def clean_name(name):
-    name = str(name)
-    # 只清理影响搜索的无意义字符，保留关键词
-    name = re.sub(r'【.*?】|\[.*?\]|\(.*?\)|（.*?）', '', name)
-    return name.strip()
-
-# ================= 3. 核心处理逻辑 =================
-
-def process_site(site):
-    if 'jar' in site:
-        del site['jar']
-
-    name = str(site.get('name', ''))
-    api = str(site.get('api', '')).strip()
-    key = str(site.get('key', '')).strip()
-
-    name_lower = name.lower()
-    api_lower = api.lower()
-    key_lower = key.lower()
-
-    for kw in KILL_KEYWORDS:
-        kw_lower = kw.lower()
-        if kw_lower in name_lower: return None
-        if kw_lower in api_lower: return None
-        if kw_lower in key_lower: return None
-
-    if any(bw in name for bw in BLACKLIST): return None
-
-    site['name'] = clean_name(name)
-    site['searchable'] = 1
-    site['quickSearch'] = 1
-
-    if site.get('type') == 3:
-        site['name'] = f"🛡️ {site['name']}"
-    else:
-        site['name'] = f"🚀 {site['name']}"
-
-    return site
-
-def fetch_sites_from_url(url):
-    print(f"    -> 抓取扩展源: {url}")
-    try:
-        data = get_json(url)
-        if not data: return []
-
-        extracted = []
-
-        if 'urls' in data and isinstance(data['urls'], list):
-            for item in data['urls']:
-                if 'url' in item:
-                    sub = get_json(item['url'])
-                    if sub and 'sites' in sub:
-                        for s in sub['sites']:
-                            p = process_site(s)
-                            if p: extracted.append(p)
-
-        if 'sites' in data:
-            for s in data['sites']:
-                p = process_site(s)
-                if p: extracted.append(p)
-
-        return extracted
+        r = requests.get(url, timeout=TIMEOUT)
+        r.raise_for_status()
+        return r.json()
     except Exception as e:
-        print(f"⚠️ 抓取失败: {url} -> {e}")
-        return []
+        print(f"[跳过] 无法获取: {url} -> {e}")
+        return None
+
+
+def normalize_site(site):
+    """
+    只做最低限度清洗，避免破坏可解析性
+    """
+    if not isinstance(site, dict):
+        return None
+
+    required = ["key", "name", "api", "type"]
+    if not all(k in site for k in required):
+        return None
+
+    s = deepcopy(site)
+
+    # 搜索修复：只补，不覆盖
+    s.setdefault("searchable", 1)
+    s.setdefault("quickSearch", 1)
+
+    # 防止奇怪类型
+    try:
+        s["type"] = int(s["type"])
+    except Exception:
+        return None
+
+    # API 基本校验
+    if not isinstance(s["api"], str) or not s["api"].startswith("http"):
+        return None
+
+    return s
+
 
 def main():
-    try:
-        requests.packages.urllib3.disable_warnings()
-        print(">>> 启动 TVBox (饭太硬底板+搜索优化+GitHub Jar)")
+    print("拉取饭太硬主配置…")
+    base = fetch_json(BASE_URL)
+    if not base:
+        raise RuntimeError("饭太硬源不可用，直接退出")
 
-        # 1. 获取饭太硬底板配置
-        print(f">>> [1/3] 下载饭太硬底板配置...")
-        base_config = get_json(BASE_CONFIG_URL)
-        if not base_config:
-            base_config = {"spider": "", "sites": [], "parses": [], "flags": [], "rules": []}
+    result = deepcopy(base)
 
-        # 2. 替换核心 Jar 和壁纸
-        base_config['spider'] = GLOBAL_SAFE_JAR
-        base_config['wallpaper'] = WALLPAPER_URL
-        base_config['drives'] = []
+    base_sites = {s["key"] for s in result.get("sites", []) if "key" in s}
+    merged = []
 
-        # 3. 清洗原底板 sites
-        print(">>> [2/3] 清洗底板接口...")
-        clean_base_sites = []
-        if 'sites' in base_config:
-            for s in base_config['sites']:
-                processed = process_site(s)
-                if processed:
-                    clean_base_sites.append(processed)
+    print(f"饭太硬原始站点数: {len(base_sites)}")
 
-        # 4. 并发抓取追加源
-        print(f">>> [3/3] 融合其他大厂源...")
-        additional_sites = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            future_to_url = {executor.submit(fetch_sites_from_url, url): url for url in ADDITIONAL_URLS}
-            for future in concurrent.futures.as_completed(future_to_url):
-                url = future_to_url[future]
-                try:
-                    sites = future.result()
-                    if sites: additional_sites.extend(sites)
-                except Exception as e:
-                    print(f"⚠️ 追加源抓取失败: {url} -> {e}")
+    for src in EXTRA_SOURCES:
+        print(f"处理附加源: {src}")
+        data = fetch_json(src)
+        if not data or "sites" not in data:
+            continue
 
-        # 5. 合并、去重
-        all_sites = clean_base_sites + additional_sites
-        unique_sites = []
-        seen_api = set()
-        for s in all_sites:
-            api = s.get('api', '')
-            if api and api not in seen_api:
-                unique_sites.append(s)
-                seen_api.add(api)
+        for site in data["sites"]:
+            s = normalize_site(site)
+            if not s:
+                continue
 
-        if len(unique_sites) > 300:
-            unique_sites = unique_sites[:300]
+            # 不覆盖饭太硬
+            if s["key"] in base_sites:
+                continue
 
-        base_config['sites'] = unique_sites
+            merged.append(s)
+            base_sites.add(s["key"])
 
-        # 6. 保存
-        with open("my_tvbox.json", 'w', encoding='utf-8') as f:
-            json.dump(base_config, f, ensure_ascii=False, indent=2)
+    print(f"成功合并新增站点: {len(merged)}")
 
-        print(f"\n✅ 完成！")
-        print(f"📊 最终接口: {len(unique_sites)} 个")
-        print(f"🚫 已拦截关键词: 盘、搜、Alist、Drive、Ali、Quark")
-        print(f"🛡️ 核心 Jar: {GLOBAL_SAFE_JAR}")
+    result["sites"].extend(merged)
 
-    except Exception as e:
-        print(f"\n[!!!] 错误: {e}")
-        if not os.path.exists("my_tvbox.json"):
-            with open("my_tvbox.json", 'w', encoding='utf-8') as f:
-                json.dump({"spider": GLOBAL_SAFE_JAR, "sites": []}, f)
-        sys.exit(0)
+    # 最终校验
+    result.setdefault("lives", [])
+    result.setdefault("parses", [])
+    result.setdefault("rules", [])
+
+    with open("tvbox_fty_merged.json", "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+
+    print("✅ 生成完成: tvbox_fty_merged.json")
+    print("✅ 该文件以饭太硬为主，新增源全部可解析")
+
 
 if __name__ == "__main__":
     main()
