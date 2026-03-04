@@ -438,6 +438,15 @@
       "quickSearch": 1
     },
     {
+      "key": "驿站",
+      "name": "🛡️ 🚗驿站",
+      "type": 3,
+      "api": "csp_Xdai",
+      "ext": "7lj763gg402i7942553393i9g44g8j82k2g9jg54ih863325555955g5g1595i1741i70lk1i00hji87320gh6j1gkkg0jh4g8697h06ghh3jhl5339731hj7hh5595ilkkkjhh8k261236896432i458hkk4i756kh5k3773jl2j8gj958228h178060g6h72j974g8k1",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
       "key": "火猫",
       "name": "🛡️ 😺火猫",
       "type": 3,
@@ -446,17 +455,6 @@
       "ext": "7lj763gg402i79425h3gjl9jh75h9884l0k6i95kj0927i63514k15k7li194l430l8l4jh2jg08j3i63g0jgj8lllll19l3l96l7g11kkg1i4l264i97jh177k04i50kghgj1ghl179236i8g503917i8h70g3723khgg3h7jh3kil6j5gk73854i45423h3h9306g2kg1jki14j7732k7557h63jil8l4076i7278i286klk2h19ig8107364g1j1k3j516j9j6kjj86i70813896k7ik83151j10ljj462gki5531h8150h39804j27l0ij80719l28kk0550l70l829328376k2k6548j7l306045l829l5kg6378i30321j42163ig87g7216429lj9hliil71k6921k7lk528kj74k212h0k88l88497l6h0871hgi55ikgl97696hk0jl6g86jlj54j36245324jlg2ih1l8gggj26gjg428lh9g9hi694j5lh70774i4h3 ",
       "searchable": 1,
       "quickSearch": 1
-    },
-    {
-      "key": "永夜",
-      "name": "🛡️ 🌙永夜",
-      "type": 3,
-      "api": "csp_Xdai",
-      "playerType": 2,
-      "searchable": 1,
-      "quickSearch": 1,
-      "filterable": 1,
-      "ext": "7lj763gg0939790i413gjh9kk011jijiggll990k9li73l224k770ik0j10l502j2j9l798lhj778hh33g018h94k5j400kij3567j7gji97kkk4118421g03lll"
     },
     {
       "name": "🛡️ 🏭厂长",
