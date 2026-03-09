@@ -12,7 +12,7 @@
     },
     {
       "key": "弹幕",
-      "name": "🛡️ 🅿嗷嗚弹幕┃刷新一下自动启动",
+      "name": "🛡️ 🅿弹幕┃刷新自动启动",
       "type": 3,
       "api": "csp_GoConfigAmnsr",
       "searchable": 1,
@@ -164,6 +164,16 @@
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1
+    },
+    {
+      "key": "csp_xlys",
+      "name": "🛡️ 🧲修罗",
+      "type": 3,
+      "api": "csp_Bdys01",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "ext": "7lj763gg402i7942476492jlg94li29kk6gi8448ij"
     },
     {
       "key": "csp_New6v",
