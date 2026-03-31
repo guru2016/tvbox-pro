@@ -11,6 +11,14 @@
       "filterable": 1
     },
     {
+      "key": "弹幕",
+      "name": "🛡️ 🅿弹幕┃刷新自动启动",
+      "type": 3,
+      "api": "csp_GoConfigAmnsr",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
       "key": "csp_GuaZi",
       "name": "🛡️ 🍉瓜子",
       "type": 3,
@@ -53,15 +61,6 @@
       "quickSearch": 1
     },
     {
-      "key": "爱影",
-      "name": "🛡️ 💖爱影",
-      "type": 3,
-      "api": "csp_Qiji",
-      "ext": "7lj763gg402i7942503399j2g04i989jhig7j94k818g326i51491kljlk134k401g9g54gk8j5i9097751kh28kh9kj4gh7hk746i4gl8h3illj74j46ik06hgh5k46lig490l4g76h237i9k106j0481l34k7574h7g93i71h7j2llj5j9",
-      "searchable": 1,
-      "quickSearch": 1
-    },
-    {
       "key": "真不错",
       "name": "🛡️ 💯真不错",
       "type": 3,
@@ -69,6 +68,26 @@
       "ext": "7lj763gg402i79424h288987hh518l81hih2i85k98827220425107k5ji43503i4i957hk19261i58k134ghi9lk0j94ikii2377778h2h8l8gg2igj6gl273lk1j12",
       "searchable": 1,
       "quickSearch": 1
+    },
+    {
+      "key": "优质",
+      "name": "🛡️ 🌈优质",
+      "type": 3,
+      "api": "csp_Qiji",
+      "playerType": 2,
+      "ext": "7lj763gg402i7942433293i0g9458881hig7j94k818g326i51491kljlk134k401g9g54gk8j5i9097751kh28kh9kj11kjl92k6046l0gkj8l630892glj67g61h48g3kjiigkg0263k6h955430429ill43307gk8k0602hh09lh0j6jh7h",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
+      "key": "厂长",
+      "name": "🛡️ 🏭厂长",
+      "type": 3,
+      "api": "csp_CzzyAmns",
+      "searchable": 1,
+      "filterable": 1,
+      "quickSearch": 1,
+      "changeable": 1
     },
     {
       "key": "csp_Jianpian",
@@ -90,25 +109,14 @@
       "filterable": 1
     },
     {
-      "key": "csp_Lkdy",
-      "name": "🛡️ 🏔️来看",
-      "type": 3,
-      "api": "csp_Lkdy",
-      "searchable": 1,
-      "quickSearch": 1,
-      "filterable": 1,
-      "ext": "https://lkvod.com"
-    },
-    {
-      "key": "剧圈圈",
-      "name": "🛡️ ⭕剧圈圈",
+      "key": "农民",
+      "name": "🛡️ 👩‍🌾农民",
       "type": 3,
       "api": "csp_XYQHiker",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
-      "ext": "https://gh-proxy.com/raw.githubusercontent.com/yoursmile66/TVBox/main/json/剧圈圈.json",
-      "click": "document.getElementById('playleft').children[0].contentWindow.document.getElementById('start').click()"
+      "ext": "https://git.yylx.win/https://raw.githubusercontent.com/yoursmile66/TVBox/main/json/农民影视.json"
     },
     {
       "key": "永乐",
@@ -232,6 +240,104 @@
       "quickSearch": 1,
       "filterable": 1,
       "ext": "https://dm84.net"
+    },
+    {
+      "name": "🛡️ ☕韩剧",
+      "key": "Hxq",
+      "type": 3,
+      "api": "csp_HxqAmns",
+      "searchable": 1,
+      "filterable": 1,
+      "quickSearch": 1,
+      "changeable": 1
+    },
+    {
+      "name": "🛡️ 🍉找短剧",
+      "key": "找短剧",
+      "type": 3,
+      "api": "csp_HgggAmns",
+      "indexs": 1,
+      "searchable": 1,
+      "filterable": 0,
+      "quickSearch": 1,
+      "changeable": 0
+    },
+    {
+      "name": "🛡️ 🎦豪堪短剧",
+      "key": "豪堪短剧",
+      "type": 3,
+      "api": "csp_HHkkAmns",
+      "searchable": 1,
+      "filterable": 1,
+      "quickSearch": 1,
+      "changeable": 1,
+      "genre": "shortdrama"
+    },
+    {
+      "name": "🛡️ 📺盒马短剧",
+      "key": "盒马短剧",
+      "type": 3,
+      "api": "csp_HemaAmns",
+      "searchable": 1,
+      "filterable": 1,
+      "quickSearch": 1,
+      "changeable": 1,
+      "genre": "shortdrama"
+    },
+    {
+      "name": "🛡️ 🎞️拜拜短剧",
+      "key": "拜拜短剧",
+      "type": 3,
+      "api": "csp_BddjAmns",
+      "searchable": 1,
+      "filterable": 1,
+      "quickSearch": 1,
+      "changeable": 1,
+      "genre": "shortdrama"
+    },
+    {
+      "name": "🛡️ 🍩甜圈短剧",
+      "key": "甜圈短剧",
+      "type": 3,
+      "api": "csp_TQdjAmns",
+      "searchable": 1,
+      "filterable": 1,
+      "quickSearch": 1,
+      "changeable": 1,
+      "genre": "shortdrama"
+    },
+    {
+      "name": "🛡️ 🐱喵喵短剧",
+      "key": "喵喵短剧",
+      "type": 3,
+      "api": "csp_QmdjAmns",
+      "searchable": 1,
+      "filterable": 1,
+      "quickSearch": 1,
+      "changeable": 1,
+      "genre": "shortdrama"
+    },
+    {
+      "name": "🛡️ ⭐星星短剧",
+      "key": "星星短剧",
+      "type": 3,
+      "api": "csp_XydjAmns",
+      "searchable": 1,
+      "filterable": 1,
+      "quickSearch": 1,
+      "changeable": 1,
+      "genre": "shortdrama"
+    },
+    {
+      "name": "🛡️ 🎂岁岁短剧",
+      "key": "岁岁短剧",
+      "type": 3,
+      "api": "csp_SpdjAmns",
+      "searchable": 1,
+      "filterable": 1,
+      "quickSearch": 1,
+      "changeable": 1,
+      "genre": "shortdrama"
     },
     {
       "key": "豆瓣",
