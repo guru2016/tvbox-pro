@@ -392,15 +392,6 @@
       "timeout": 30
     },
     {
-      "key": "csp_DouBan",
-      "name": "🛡️ 🔍豆瓣",
-      "type": 3,
-      "api": "csp_DouBan",
-      "searchable": 1,
-      "quickSearch": 1,
-      "filterable": 1
-    },
-    {
       "key": "弹幕",
       "name": "🛡️ 🅿弹幕┃刷新自动启动",
       "type": 3,
@@ -451,21 +442,21 @@
       "quickSearch": 1
     },
     {
-      "key": "真不错",
-      "name": "🛡️ 💯真不错",
-      "type": 3,
-      "api": "csp_Xdai",
-      "ext": "7lj763gg402i79424h288987hh518l81hih2i85k98827220425107k5ji43503i4i957hk19261i58k134ghi9lk0j94ikii2377778h2h8l8gg2igj6gl273lk1j12",
-      "searchable": 1,
-      "quickSearch": 1
-    },
-    {
       "key": "优质",
       "name": "🛡️ 🌈优质",
       "type": 3,
       "api": "csp_Qiji",
       "playerType": 2,
       "ext": "7lj763gg402i7942433293i0g9458881hig7j94k818g326i51491kljlk134k401g9g54gk8j5i9097751kh28kh9kj11kjl92k6046l0gkj8l630892glj67g61h48g3kjiigkg0263k6h955430429ill43307gk8k0602hh09lh0j6jh7h",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
+      "key": "王子",
+      "name": "🛡️ 🍟王子",
+      "type": 3,
+      "api": "csp_Xdai",
+      "ext": "7lj763gg402i7942503g9g9jk909jji3g0li9j088291253h4k141gggkk41435h43924kg6ik48i0856j01k882glkh4kllg538704jl5k4j1gl27j321g03lll",
       "searchable": 1,
       "quickSearch": 1
     },
