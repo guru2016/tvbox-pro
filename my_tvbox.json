@@ -11,6 +11,32 @@
       "quickSearch": 1
     },
     {
+      "key": "WebDAV",
+      "name": "🛡️ 🍺┃Web┃DAV",
+      "type": 3,
+      "api": "csp_WebDAV",
+      "searchable": 1,
+      "filterable": 1,
+      "changeable": 1,
+      "timeout": 60,
+      "playerType": 2,
+      "ext": "./json/webdav.json",
+      "quickSearch": 1
+    },
+    {
+      "key": "Samba",
+      "name": "🛡️ 📁┃Samba┃共享",
+      "type": 3,
+      "api": "csp_Samba",
+      "searchable": 1,
+      "filterable": 1,
+      "changeable": 1,
+      "timeout": 30,
+      "playerType": 1,
+      "ext": "./json/samba.json",
+      "quickSearch": 1
+    },
+    {
       "key": "配置",
       "name": "🛡️ ⚔️｜配置｜中心",
       "type": 3,
@@ -71,8 +97,8 @@
       "key": "腾腾视频",
       "name": "🛡️ 🎇｜腾腾｜解析",
       "type": 3,
-      "api": "https://chigua.eu.org/js/online/drpy2.min.js",
-      "ext": "https://chigua.eu.org/js/online/tx.js",
+      "api": "https://pan.vma.cc/pan/down.php/ec67b9045d393737f073d2c9365533f0.js",
+      "ext": "https://git.yylx.win/raw.githubusercontent.com/PizazzGY/NewTVBox/main/movie/js/TXSP.js",
       "searchable": 1,
       "quickSearch": 1
     },
