@@ -11,32 +11,6 @@
       "quickSearch": 1
     },
     {
-      "key": "WebDAV",
-      "name": "🛡️ 🍺┃Web┃DAV",
-      "type": 3,
-      "api": "csp_WebDAV",
-      "searchable": 1,
-      "filterable": 1,
-      "changeable": 1,
-      "timeout": 60,
-      "playerType": 2,
-      "ext": "./json/webdav.json",
-      "quickSearch": 1
-    },
-    {
-      "key": "Samba",
-      "name": "🛡️ 📁┃Samba┃共享",
-      "type": 3,
-      "api": "csp_Samba",
-      "searchable": 1,
-      "filterable": 1,
-      "changeable": 1,
-      "timeout": 30,
-      "playerType": 1,
-      "ext": "./json/samba.json",
-      "quickSearch": 1
-    },
-    {
       "key": "配置",
       "name": "🛡️ ⚔️｜配置｜中心",
       "type": 3,
@@ -335,6 +309,28 @@
       "searchable": 1,
       "changeable": 0,
       "api": "csp_Local",
+      "quickSearch": 1
+    },
+    {
+      "key": "WebDAV",
+      "name": "🛡️ 🗂️┃Web┃DAV",
+      "type": 3,
+      "api": "csp_WebDAV",
+      "searchable": 1,
+      "filterable": 1,
+      "changeable": 0,
+      "timeout": 60,
+      "quickSearch": 1
+    },
+    {
+      "key": "Samba",
+      "name": "🛡️ 🗂️┃SMB┃共享",
+      "type": 3,
+      "api": "csp_Samba",
+      "searchable": 1,
+      "filterable": 1,
+      "changeable": 0,
+      "timeout": 30,
       "quickSearch": 1
     },
     {
