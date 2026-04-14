@@ -52,21 +52,21 @@
       "quickSearch": 1
     },
     {
+      "key": "映画",
+      "name": "🛡️ 🖼映画",
+      "type": 3,
+      "api": "csp_Xdai",
+      "ext": "7lj763gg402i794252279982k40ii28hlggl8452i28i733j506i4ilgjg4k5k2l489967k69670i49k271l90j4lljl41k2j1337h64h5hik9gh3i996kg33j",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
       "key": "趣看",
       "name": "🛡️ 🥽趣看",
       "type": 3,
       "api": "csp_Qiji",
       "playerType": 2,
       "ext": "7lj763gg402i79425l239ljhg55099jiljhhj910il877129534l1ik9l1184k401g9g54gk8j5i9097751kh28kh9l211l2lk696110l0ggjlk0339j25j768855553lkl8l1g5i05018428357244jh6l0607k61h5l55j20j0k996hl977gl13g",
-      "searchable": 1,
-      "quickSearch": 1
-    },
-    {
-      "key": "王子",
-      "name": "🛡️ 🍟王子",
-      "type": 3,
-      "api": "csp_Xdai",
-      "ext": "7lj763gg402i7942503g9g9jk909jji3g0li9j088291253h4k141gggkk41435h43924kg6ik48i0856j01k882glkh4kllg538704jl5k4j1gl27j321g03lll",
       "searchable": 1,
       "quickSearch": 1
     },
@@ -252,6 +252,17 @@
       "filterable": 0,
       "quickSearch": 1,
       "changeable": 0
+    },
+    {
+      "name": "🛡️ 🍩甜圈短剧",
+      "key": "甜圈短剧",
+      "type": 3,
+      "api": "csp_TQdjAmns",
+      "searchable": 1,
+      "filterable": 1,
+      "quickSearch": 1,
+      "changeable": 1,
+      "genre": "shortdrama"
     },
     {
       "name": "🛡️ 🎦豪堪短剧",
@@ -539,6 +550,19 @@
       "quickSearch": 1
     },
     {
+      "key": "盼她",
+      "name": "🛡️ 💥｜盼她｜免扫",
+      "type": 3,
+      "api": "csp_PanTa",
+      "searchable": 1,
+      "filterable": 0,
+      "changeable": 0,
+      "style": {
+        "type": "list"
+      },
+      "quickSearch": 1
+    },
+    {
       "key": "金牌影视",
       "name": "🛡️ 💥｜金牌｜影视",
       "type": 3,
@@ -559,10 +583,10 @@
       "quickSearch": 1
     },
     {
-      "key": "XinHan",
-      "name": "🛡️ 💥｜韩剧｜影视",
+      "key": "Xb6v",
+      "name": "🛡️ 💥｜新6V｜磁力",
       "type": 3,
-      "api": "csp_XinHan",
+      "api": "csp_Xb6v",
       "searchable": 1,
       "filterable": 1,
       "quickSearch": 1
@@ -582,21 +606,21 @@
       }
     },
     {
+      "key": "XinHan",
+      "name": "🛡️ 💥｜韩剧｜影视",
+      "type": 3,
+      "api": "csp_XinHan",
+      "searchable": 1,
+      "filterable": 1,
+      "quickSearch": 1
+    },
+    {
       "key": "腾腾视频",
       "name": "🛡️ 🎇｜腾腾｜解析",
       "type": 3,
       "api": "https://pan.vma.cc/pan/down.php/ec67b9045d393737f073d2c9365533f0.js",
       "ext": "https://git.yylx.win/raw.githubusercontent.com/PizazzGY/NewTVBox/main/movie/js/TXSP.js",
       "searchable": 1,
-      "quickSearch": 1
-    },
-    {
-      "key": "Xb6v",
-      "name": "🛡️ 🎇｜新6V｜磁力",
-      "type": 3,
-      "api": "csp_Xb6v",
-      "searchable": 1,
-      "filterable": 1,
       "quickSearch": 1
     },
     {
