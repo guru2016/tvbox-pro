@@ -52,21 +52,21 @@
       "quickSearch": 1
     },
     {
-      "key": "映画",
-      "name": "🛡️ 🖼映画",
-      "type": 3,
-      "api": "csp_Xdai",
-      "ext": "7lj763gg402i794252279982k40ii28hlggl8452i28i733j506i4ilgjg4k5k2l489967k69670i49k271l90j4lljl41k2j1337h64h5hik9gh3i996kg33j",
-      "searchable": 1,
-      "quickSearch": 1
-    },
-    {
       "key": "趣看",
       "name": "🛡️ 🥽趣看",
       "type": 3,
       "api": "csp_Qiji",
       "playerType": 2,
       "ext": "7lj763gg402i79425l239ljhg55099jiljhhj910il877129534l1ik9l1184k401g9g54gk8j5i9097751kh28kh9l211l2lk696110l0ggjlk0339j25j768855553lkl8l1g5i05018428357244jh6l0607k61h5l55j20j0k996hl977gl13g",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
+      "key": "王子",
+      "name": "🛡️ 🍟王子",
+      "type": 3,
+      "api": "csp_Xdai",
+      "ext": "7lj763gg402i7942503g9g9jk909jji3g0li9j088291253h4k141gggkk41435h43924kg6ik48i0856j01k882glkh4kllg538704jl5k4j1gl27j321g03lll",
       "searchable": 1,
       "quickSearch": 1
     },
