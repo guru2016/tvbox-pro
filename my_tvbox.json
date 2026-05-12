@@ -5,7 +5,7 @@
       "key": "弹幕",
       "name": "🛡️ 🅿弹幕┃刷新自动启动",
       "type": 3,
-      "api": "csp_GoConfigAmnsr",
+      "api": "csp_AAConfigAmns",
       "searchable": 1,
       "quickSearch": 1
     },
@@ -102,21 +102,6 @@
       "quickSearch": 1,
       "ext": {
         "sites": "https://www.czzy89.com,https://www.cz01.org",
-        "filters": ""
-      }
-    },
-    {
-      "name": "🛡️ 📀俩BT",
-      "key": "Bttwo",
-      "type": 3,
-      "api": "csp_BttwoAmns",
-      "playerType": 2,
-      "searchable": 1,
-      "filterable": 1,
-      "quickSearch": 1,
-      "changeable": 1,
-      "ext": {
-        "sites": "https://www.bttwo.me,https://www.bttwo.org,https://www.bttwoo.com,https://www.bttwo.net",
         "filters": ""
       }
     },
