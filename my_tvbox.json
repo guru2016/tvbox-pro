@@ -5,7 +5,7 @@
       "key": "弹幕",
       "name": "🛡️ 🅿弹幕┃刷新自动启动",
       "type": 3,
-      "api": "csp_AAConfigAmns",
+      "api": "csp_GoConfigAmnsr",
       "searchable": 1,
       "quickSearch": 1
     },
