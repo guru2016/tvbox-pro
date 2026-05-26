@@ -2,6 +2,14 @@
   "spider": "https://github.com/guru2016/tvbox-pro/raw/refs/heads/main/custom_spider.jar",
   "sites": [
     {
+      "key": "弹幕",
+      "name": "🛡️ Ⓜ️嗷呜弹幕设置",
+      "type": 3,
+      "api": "csp_AAConfigAmns",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
       "key": "csp_GuaZi",
       "name": "🛡️ 🍉瓜子",
       "type": 3,
