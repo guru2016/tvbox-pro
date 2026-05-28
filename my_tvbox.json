@@ -350,19 +350,6 @@
       "genre": "shortdrama"
     },
     {
-      "key": "csp_Kanqiu",
-      "name": "🛡️ ⚾看球",
-      "type": 3,
-      "api": "csp_Kanqiu",
-      "searchable": 1,
-      "quickSearch": 1,
-      "changeable": 0,
-      "gridview": 3,
-      "style": {
-        "type": "list"
-      }
-    },
-    {
       "key": "csp_Kugou",
       "name": "🛡️ 🐶酷狗",
       "type": 3,
