@@ -559,6 +559,15 @@
       "quickSearch": 1
     },
     {
+      "key": "Nostr",
+      "name": "🛡️ 🌀｜Nostr｜推荐",
+      "type": 3,
+      "api": "csp_Nostr",
+      "homePage": "https://www.252035.xyz/xs/tvbox/nostr.html",
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
       "key": "配置",
       "name": "🛡️ ⚔️｜配置｜中心",
       "type": 3,
