@@ -178,18 +178,6 @@
       "quickSearch": 1
     },
     {
-      "key": "csp_Ikanbot",
-      "name": "🛡️ 👾Ikanbot",
-      "type": 3,
-      "api": "csp_Ikanbot",
-      "searchable": 1,
-      "quickSearch": 1,
-      "filterable": 1,
-      "ext": {
-        "commonConfig": "https://gh-proxy.com/raw.githubusercontent.com/yoursmile66/TVBox/main/json/peizhi.json"
-      }
-    },
-    {
       "key": "csp_Dygang",
       "name": "🛡️ 🧲电影港",
       "type": 3,
@@ -556,15 +544,6 @@
       "api": "csp_Douban",
       "searchable": 1,
       "filterable": 1,
-      "quickSearch": 1
-    },
-    {
-      "key": "Nostr",
-      "name": "🛡️ 🌀｜Nostr｜推荐",
-      "type": 3,
-      "api": "csp_Nostr",
-      "homePage": "https://www.252035.xyz/xs/tvbox/nostr.html",
-      "searchable": 1,
       "quickSearch": 1
     },
     {
