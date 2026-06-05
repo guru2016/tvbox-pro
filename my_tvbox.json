@@ -269,6 +269,17 @@
       "quickSearch": 1
     },
     {
+      "key": "瓜子体育",
+      "name": "🛡️ ⚽｜瓜子｜体育",
+      "type": 3,
+      "api": "csp_GuaziTY",
+      "style": {
+        "type": "list"
+      },
+      "searchable": 1,
+      "quickSearch": 1
+    },
+    {
       "key": "csp_XYQHiker_兔小贝",
       "name": "🛡️ 🐰｜小贝｜儿歌",
       "type": 3,
